@@ -1,2 +1,0 @@
-# offer-read-service
-
