@@ -1,0 +1,42 @@
+stages:
+  - .pre
+  - Artifact
+  - Container
+  - Deploy
+
+variables:
+  LANG: en_US.utf8
+  GOPRIVATE: gitlab.int.tsum.com
+  FROM: 'apps/preowned/simona/delta/offer-read-service'
+  ENV: 'dev'
+
+.build_script:
+  image:
+    name: repo.int.tsum.com/tsum/core/golang:1.18
+  variables:
+    PLATFORM: linux
+    ARCH: amd64
+    VERSION: "$CI_COMMIT_SHORT_SHA"
+  script:
+    - git config --global url."http://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.int.tsum.com".insteadOf "https://gitlab.int.tsum.com"
+    - export RELEASE_STR=$CI_COMMIT_TAG; if [ -z "$RELEASE_STR" ]; then RELEASE_STR=$CI_COMMIT_SHORT_SHA; fi;
+    - make dist
+    - tar -cvzf artifact.tar.gz -C build/distr/${PLATFORM}-${ARCH} .
+  artifacts:
+    paths:
+      - artifact.tar.gz
+    expire_in: 3 day
+
+Unit tests:
+  stage: .pre
+  image:
+    name: repo.int.tsum.com:443/tsum/preowned/golang:1.18
+  before_script:
+    - git config --global url."http://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.int.tsum.com".insteadOf "https://gitlab.int.tsum.com"
+  script:
+    - go test -race ./...
+
+include:
+  project: 'sysadmin/docker/nomad'
+  file: 'include-ci/apps/preowned_offer_read_service.yml'
+  ref: master
