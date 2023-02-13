@@ -3,14 +3,21 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/getsentry/sentry-go"
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing"
+	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_read_service"
+	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
+	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"offer-read-service/internal/repository"
+	"offer-read-service/internal/service"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -29,10 +36,20 @@ type Root struct {
 	Config         *Config
 	Server         *grpc.Server
 	Infrastructure struct {
-		HTTP *http.Server
+		HTTP          *http.Server
+		Elasticsearch *elasticsearch.Client
 	}
-	Repositories   struct{}
-	Services       struct{}
+	Repositories struct {
+		Repo repository.Repository
+	}
+	Clients struct {
+		OfferClient       offer_service.OfferServiceClient
+		CatalogReadClient catalog_read_service.CatalogReadSearchServiceClient
+		StockClient       stock_service.StockServiceClient
+	}
+	Services struct {
+		Indexator service.Indexator
+	}
 	Logger         *zap.Logger
 	backgroundJobs []func() error
 	stopHandlers   []func()
@@ -59,7 +76,10 @@ func NewRoot(config *Config, options ...Option) (*Root, error) {
 		return nil, err
 	}
 
+	root.initGRPCServer()
+	root.initInfrastructure()
 	root.initHTTPServer()
+	root.initClients()
 	root.initRepositories()
 	root.initServices()
 	err = root.initSentry()
@@ -123,6 +143,16 @@ func (r *Root) initHTTPServer() {
 	mux.Handle("/health", healthcheck.Handler(
 		healthcheck.WithReleaseID(r.Config.ReleaseID),
 	))
+	mux.Handle("/full_index", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		indexingResult, err := r.Services.Indexator.Index(request.Context())
+		if err != nil {
+			writer.WriteHeader(500)
+			writer.Write([]byte(err.Error()))
+			return
+		}
+		writer.WriteHeader(200)
+		writer.Write([]byte(fmt.Sprintf(`result:%+v`+"\n", indexingResult)))
+	}))
 
 	r.Infrastructure.HTTP = &http.Server{
 		Handler:     mux,
@@ -182,10 +212,65 @@ func (r *Root) initGRPCServer() {
 	r.RegisterStopHandler(r.Server.GracefulStop)
 }
 
+func (r *Root) initClients() {
+	conn, err := dial(r.Config.GrpcClientConfig.OfferEndpoint)
+	if err != nil {
+		panic(err)
+	}
+	r.Clients.OfferClient = offer_service.NewOfferServiceClient(conn)
+
+	conn, err = dial(r.Config.GrpcClientConfig.CatalogReadEndpoint)
+	if err != nil {
+		panic(err)
+	}
+	r.Clients.CatalogReadClient = catalog_read_service.NewCatalogReadSearchServiceClient(conn)
+
+	conn, err = dial(r.Config.GrpcClientConfig.StockEndpoint)
+	if err != nil {
+		panic(err)
+	}
+	r.Clients.StockClient = stock_service.NewStockServiceClient(conn)
+
+}
+
+func dial(target string) (*grpc.ClientConn, error) {
+	conn, err := grpc.Dial(
+		target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("grpc.Dial to '%s' service: '%w'", target, err)
+	}
+	return conn, nil
+}
+
+func (r *Root) initInfrastructure() {
+	client, err := elasticsearch.NewClient(elasticsearch.Config{
+		Addresses: r.Config.Elastic.Addresses,
+	})
+	if err != nil {
+		panic(err)
+	}
+	r.Infrastructure.Elasticsearch = client
+}
+
 func (r *Root) initRepositories() {
+	repo, err := repository.NewElasticRepo(r.Infrastructure.Elasticsearch, r.Config.Elastic.OfferIndexName)
+	if err != nil {
+		panic(err)
+	}
+	r.Repositories.Repo = repo
 }
 
 func (r *Root) initServices() {
+	r.Services.Indexator = service.NewIndexator(
+		r.Clients.OfferClient,
+		r.Clients.CatalogReadClient,
+		r.Clients.StockClient,
+		r.Repositories.Repo,
+		r.Logger,
+		r.Config.Elastic.IndexPerPage,
+	)
 }
 
 func (r *Root) initSentry() error {

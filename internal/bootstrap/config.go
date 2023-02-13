@@ -10,14 +10,15 @@ import (
 )
 
 type Config struct {
-	ReleaseID  string
-	Env        string `envconfig:"ENV" default:"development"`
-	LogLevel   string `envconfig:"LOG_LEVEL" default:"info"`
-	GRPC       GRPCServerConfig
-	HTTP       HTTPServerConfig
-	Sentry     SentryConfig
-	ElasticAPM ElasticAPM
-	Elastic    ElasticConfig `envconfig:"ELASTIC"`
+	ReleaseID        string
+	Env              string `envconfig:"ENV" default:"development"`
+	LogLevel         string `envconfig:"LOG_LEVEL" default:"info"`
+	GRPC             GRPCServerConfig
+	GrpcClientConfig GRPCClientConfig
+	HTTP             HTTPServerConfig
+	Sentry           SentryConfig
+	ElasticAPM       ElasticAPM
+	Elastic          ElasticConfig `envconfig:"ELASTIC"`
 }
 
 type GRPCServerConfig struct {
@@ -25,6 +26,12 @@ type GRPCServerConfig struct {
 	KeepaliveTime            time.Duration `envconfig:"GRPC_KEEPALIVE_TIME" default:"30s" required:"true"`
 	KeepaliveTimeout         time.Duration `envconfig:"GRPC_KEEPALIVE_TIMEOUT" default:"10s" required:"true"`
 	RegisterReflectionServer bool          `envconfig:"GRPC_REGISTER_REFLECTION_SERVER" default:"true" required:"true"`
+}
+
+type GRPCClientConfig struct {
+	OfferEndpoint       string `envconfig:"GRPC_OFFER_SERVICE_ADDR" required:"true"`
+	CatalogReadEndpoint string `envconfig:"GRPC_CATALOG_READ_SERVICE_ADDR" required:"true"`
+	StockEndpoint       string `envconfig:"GRPC_STOCK_SERVICE_ADDR" required:"true"`
 }
 
 type HTTPServerConfig struct {
@@ -44,8 +51,9 @@ type ElasticAPM struct {
 }
 
 type ElasticConfig struct {
-	Addresses []string `envconfig:"ADDRESSES" required:"true"`
-	UserName  string   `envconfig:"USER_NAME" default:"delta.user_index" required:"true"`
+	Addresses      []string `envconfig:"ADDRESSES" required:"true"`
+	OfferIndexName string   `envconfig:"OFFER_INDEX_NAME" default:"delta.offer_index" required:"true"`
+	IndexPerPage   int      `envconfig:"INDEX_PER_PAGE" default:"100" required:"true"`
 }
 
 func NewConfig() (*Config, error) {
