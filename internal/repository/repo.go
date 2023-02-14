@@ -11,7 +11,7 @@ type ListResponse[T any] struct {
 	Data  []T
 }
 
-type Repository interface {
+type OfferRepository interface {
 	Update(context.Context, []model.Offer) error
 	ListOffer(context.Context, v1.GetListRequest) (*ListResponse[model.Offer], error)
 }

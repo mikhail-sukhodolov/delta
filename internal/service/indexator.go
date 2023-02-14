@@ -29,7 +29,7 @@ type indexator struct {
 	offerClient       offer_service.OfferServiceClient
 	catalogReadClient catalog_read_service.CatalogReadSearchServiceClient
 	stockClient       stock_service.StockServiceClient
-	repo              repository.Repository
+	repo              repository.OfferRepository
 	logger            *zap.Logger
 	perPage           int
 }
@@ -38,7 +38,7 @@ func NewIndexator(
 	offerClient offer_service.OfferServiceClient,
 	catalogReadClient catalog_read_service.CatalogReadSearchServiceClient,
 	stockClient stock_service.StockServiceClient,
-	repo repository.Repository,
+	repo repository.OfferRepository,
 	logger *zap.Logger,
 	perPage int,
 ) Indexator {
@@ -109,7 +109,7 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 	if err != nil {
 		return nil, fmt.Errorf("s.catalogReadClient.GetItemsByCodes: %w", err)
 	}
-	itemPublished := lo.SliceToMap(itemResp.Items, func(item *catalog_read_service.ItemComposite) (string, *catalog_read_service.ItemComposite) {
+	_ = lo.SliceToMap(itemResp.Items, func(item *catalog_read_service.ItemComposite) (string, *catalog_read_service.ItemComposite) {
 		return item.Item.Code, item
 	})
 
@@ -128,15 +128,11 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 			SellerID: int(offer.SellerId),
 		}
 
-		stock, _ := lo.Find(units.StockUnits, func(s *stock_service.StockUnit) bool {
+		_, _ = lo.Find(units.StockUnits, func(s *stock_service.StockUnit) bool {
 			return s.OfferCode == offer.OfferCode
 		})
 
-		res.IsPreparing, res.IsPreparingCalculateDate = isPreparing(stock, itemPublished[offer.OfferCode])
-		res.IsPublished, res.IsPublishedCalculateDate = isPublished(itemPublished[offer.OfferCode])
-		res.IsSales, res.IsSalesCalculateDate = isSales(stock)
-		res.IsReturned, res.IsReturnedCalculateDate = isReturned(stock)
-		res.IsReserving, res.IsReservingCalculateDate = false, time.Time{} // TODO
+		res.Status = model.OfferStatusPublished
 
 		return res
 	}), nil

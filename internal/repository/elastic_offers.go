@@ -39,7 +39,7 @@ type elasticResponse struct {
 	} `json:"hits"`
 }
 
-func NewElasticRepo(client *elasticsearch.Client, indexName string) (Repository, error) {
+func NewElasticRepo(client *elasticsearch.Client, indexName string) (OfferRepository, error) {
 	err := createOrUpdateIndex(client, indexName)
 	if err != nil {
 		return nil, err

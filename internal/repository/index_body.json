@@ -5,45 +5,31 @@
         "type": "long"
       },
       "offer.code": {
-        "type": "keyword",
-        "index": false
+        "type": "keyword"
       },
       "offer.seller_id": {
         "type": "long"
       },
-      "offer.is_preparing": {
-        "type": "boolean"
+      "offer.status": {
+        "type": "keyword"
       },
       "offer.is_preparing_calculate_date": {
         "type": "date"
       },
-      "offer.is_published": {
-        "type": "boolean"
-      },
       "offer.is_published_calculate_date": {
         "type": "date"
-      },
-      "offer.is_reserving": {
-        "type": "boolean"
       },
       "offer.is_reserving_calculate_date": {
         "type": "date"
       },
-      "offer.is_sales": {
-        "type": "boolean"
-      },
       "offer.is_sales_calculate_date": {
         "type": "date"
-      },
-      "offer.is_returned_to_seller": {
-        "type": "boolean"
       },
       "offer.is_returned_to_seller_calculate_date": {
         "type": "date"
       },
       "indexed": {
-        "type": "date",
-        "index": false
+        "type": "date"
       }
     }
   }

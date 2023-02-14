@@ -40,7 +40,7 @@ type Root struct {
 		Elasticsearch *elasticsearch.Client
 	}
 	Repositories struct {
-		Repo repository.Repository
+		Repo repository.OfferRepository
 	}
 	Clients struct {
 		OfferClient       offer_service.OfferServiceClient
