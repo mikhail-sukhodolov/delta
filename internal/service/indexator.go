@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 	"offer-read-service/internal/model"
 	"offer-read-service/internal/repository"
+	"strings"
 	"sync"
 	"time"
 )
@@ -109,7 +110,7 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 	if err != nil {
 		return nil, fmt.Errorf("s.catalogReadClient.GetItemsByCodes: %w", err)
 	}
-	_ = lo.SliceToMap(itemResp.Items, func(item *catalog_read_service.ItemComposite) (string, *catalog_read_service.ItemComposite) {
+	catalogReadOffers := lo.SliceToMap(itemResp.Items, func(item *catalog_read_service.ItemComposite) (string, *catalog_read_service.ItemComposite) {
 		return item.Item.Code, item
 	})
 
@@ -124,15 +125,11 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 	return lo.Map(offers, func(offer *offer_service.Offer, _ int) model.Offer {
 		res := model.Offer{
 			ID:       int(offer.Id),
-			Code:     offer.ItemCode,
+			Code:     offer.OfferCode,
 			SellerID: int(offer.SellerId),
 		}
 
-		_, _ = lo.Find(units.StockUnits, func(s *stock_service.StockUnit) bool {
-			return s.OfferCode == offer.OfferCode
-		})
-
-		res.Status = model.OfferStatusPublished
+		res.Status = findStatus(offer, catalogReadOffers, units.StockUnits)
 
 		return res
 	}), nil
@@ -143,18 +140,36 @@ const (
 	stockReasonReturned = "returned-to-seller"
 )
 
-func isPreparing(stockItem *stock_service.StockUnit, itemPublished *catalog_read_service.ItemComposite) (bool, time.Time) {
-	return stockItem == nil || (itemPublished != nil && (!stockItem.IsAvailableForPurchase || !itemPublished.Item.InStock)), time.Now()
-}
+func findStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, units []*stock_service.StockUnit) model.OfferStatus {
+	if catalogReadOffers[offer.ItemCode] != nil {
+		return model.OfferStatusPublished
+	}
 
-func isPublished(itemPublished *catalog_read_service.ItemComposite) (bool, time.Time) {
-	return itemPublished != nil, time.Now()
-}
+	units = lo.Filter(units, func(item *stock_service.StockUnit, _ int) bool {
+		return !strings.Contains(item.VersionClosingReason, "duplicate")
+	})
 
-func isSales(stockItem *stock_service.StockUnit) (bool, time.Time) {
-	return stockItem != nil && stockItem.VersionClosingReason == stockReasonReleased, time.Now()
-}
+	for _, unit := range units {
+		if unit.IsAvailableForPurchase {
+			if offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000 {
+				return model.OfferStatusNew
+			} else {
+				return model.OfferStatusPublished
+			}
+		}
 
-func isReturned(stockItem *stock_service.StockUnit) (bool, time.Time) {
-	return stockItem != nil && stockItem.VersionClosingReason == stockReasonReturned, time.Now()
+		if unit.IsReserved {
+			return model.OfferStatusInOrder
+		}
+
+		if unit.VersionClosingReason == stockReasonReleased {
+			return model.OfferStatusSold
+		}
+
+		if unit.VersionClosingReason == stockReasonReturned {
+			return model.OfferStatusReturnedToSeller
+		}
+	}
+
+	return model.OfferStatusNew
 }

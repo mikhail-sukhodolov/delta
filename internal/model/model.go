@@ -5,7 +5,11 @@ import "time"
 type OfferStatus string
 
 const (
-	OfferStatusPublished OfferStatus = `published`
+	OfferStatusPublished        OfferStatus = `published`
+	OfferStatusNew              OfferStatus = `new`
+	OfferStatusInOrder          OfferStatus = `in_order`
+	OfferStatusSold             OfferStatus = `sold`
+	OfferStatusReturnedToSeller OfferStatus = `returned-to-seller`
 )
 
 type Offer struct {
