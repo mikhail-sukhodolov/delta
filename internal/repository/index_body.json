@@ -13,16 +13,16 @@
       "offer.status": {
         "type": "keyword"
       },
-      "offer.is_preparing_calculate_date": {
-        "type": "date"
-      },
-      "offer.is_published_calculate_date": {
-        "type": "date"
-      },
-      "offer.is_reserving_calculate_date": {
+      "offer.is_new_calculate_date": {
         "type": "date"
       },
       "offer.is_sales_calculate_date": {
+        "type": "date"
+      },
+      "offer.is_order_calculate_date": {
+        "type": "date"
+      },
+      "offer.is_sold_calculate_date": {
         "type": "date"
       },
       "offer.is_returned_to_seller_calculate_date": {

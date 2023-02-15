@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_read_service"
+	v1 "gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/common/search_kit/v1"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
 	"go.uber.org/zap"
@@ -77,6 +78,7 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 			return nil, fmt.Errorf("can't ListUsers %w", err)
 		}
 		logger.Sugar().Infof("list offer %d", len(offers.Offer))
+
 		richOffers, err := s.enrich(ctx, offers.Offer)
 		if err != nil {
 			return nil, fmt.Errorf("can't enrich %w", err)
@@ -122,14 +124,49 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 		return nil, fmt.Errorf("s.stockClient.ListStockUnits: %w", err)
 	}
 
+	offersFromDBSlice, err := s.repo.ListOffer(ctx, v1.GetListRequest{
+		Filters: &v1.GetListRequest_FilterGroup{
+			Filters: []*v1.GetListRequest_FilterGroup_FieldFilter{
+				{
+					Field: "offer.code",
+					Filter: &v1.GetListRequest_FilterGroup_FieldFilter_FilterTextIn{
+						FilterTextIn: &v1.GetListRequest_FilterGroup_FieldFilter_FilterTypeTextIn{
+							Value: offerCodes,
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("s.repo.ListOffer: %w", err)
+	}
+	offersFromDB := lo.SliceToMap(offersFromDBSlice.Data, func(item model.Offer) (string, model.Offer) {
+		return item.Code, item
+	})
+
 	return lo.Map(offers, func(offer *offer_service.Offer, _ int) model.Offer {
 		res := model.Offer{
 			ID:       int(offer.Id),
 			Code:     offer.OfferCode,
 			SellerID: int(offer.SellerId),
+			Indexed:  time.Now(),
 		}
 
 		res.Status = findStatus(offer, catalogReadOffers, units.StockUnits)
+		offerFromDB := offersFromDB[offer.OfferCode]
+		switch {
+		case res.Status == model.OfferStatusNew && offerFromDB.IsNewCalculateDate.IsZero():
+			res.IsNewCalculateDate = time.Now()
+		case res.Status == model.OfferStatusSales && offerFromDB.IsSalesCalculateDate.IsZero():
+			res.IsSalesCalculateDate = time.Now()
+		case res.Status == model.OfferStatusInOrder:
+			res.IsOrderCalculateDate = time.Now()
+		case res.Status == model.OfferStatusSold && offerFromDB.IsSoldCalculateDate.IsZero():
+			res.IsSoldCalculateDate = time.Now()
+		case res.Status == model.OfferStatusReturnedToSeller && offerFromDB.IsReturnedToSellerCalculateDate.IsZero():
+			res.IsReturnedToSellerCalculateDate = time.Now()
+		}
 
 		return res
 	}), nil
@@ -142,7 +179,7 @@ const (
 
 func findStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, units []*stock_service.StockUnit) model.OfferStatus {
 	if catalogReadOffers[offer.ItemCode] != nil {
-		return model.OfferStatusPublished
+		return model.OfferStatusSales
 	}
 
 	units = lo.Filter(units, func(item *stock_service.StockUnit, _ int) bool {
@@ -154,7 +191,7 @@ func findStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalo
 			if offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000 {
 				return model.OfferStatusNew
 			} else {
-				return model.OfferStatusPublished
+				return model.OfferStatusSales
 			}
 		}
 
