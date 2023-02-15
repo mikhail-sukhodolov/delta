@@ -153,18 +153,18 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 			Indexed:  time.Now(),
 		}
 
-		res.Status = findStatus(offer, catalogReadOffers, units.StockUnits)
+		res.Status = calculateStatus(offer, catalogReadOffers, units.StockUnits)
 		offerFromDB := offersFromDB[offer.OfferCode]
 		switch {
-		case res.Status == model.OfferStatusNew && offerFromDB.IsNewCalculateDate.IsZero():
+		case res.Status == model.OfferStatusCodeNew && offerFromDB.IsNewCalculateDate.IsZero():
 			res.IsNewCalculateDate = time.Now()
-		case res.Status == model.OfferStatusSales && offerFromDB.IsSalesCalculateDate.IsZero():
+		case res.Status == model.OfferStatusCodeSales && offerFromDB.IsSalesCalculateDate.IsZero():
 			res.IsSalesCalculateDate = time.Now()
-		case res.Status == model.OfferStatusInOrder:
+		case res.Status == model.OfferStatusCodeInOrder:
 			res.IsOrderCalculateDate = time.Now()
-		case res.Status == model.OfferStatusSold && offerFromDB.IsSoldCalculateDate.IsZero():
+		case res.Status == model.OfferStatusCodeSold && offerFromDB.IsSoldCalculateDate.IsZero():
 			res.IsSoldCalculateDate = time.Now()
-		case res.Status == model.OfferStatusReturnedToSeller && offerFromDB.IsReturnedToSellerCalculateDate.IsZero():
+		case res.Status == model.OfferStatusCodeReturnedToSeller && offerFromDB.IsReturnedToSellerCalculateDate.IsZero():
 			res.IsReturnedToSellerCalculateDate = time.Now()
 		}
 
@@ -177,9 +177,9 @@ const (
 	stockReasonReturned = "returned-to-seller"
 )
 
-func findStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, units []*stock_service.StockUnit) model.OfferStatus {
+func calculateStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, units []*stock_service.StockUnit) model.OfferStatusCode {
 	if catalogReadOffers[offer.ItemCode] != nil {
-		return model.OfferStatusSales
+		return model.OfferStatusCodeSales
 	}
 
 	units = lo.Filter(units, func(item *stock_service.StockUnit, _ int) bool {
@@ -189,24 +189,24 @@ func findStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalo
 	for _, unit := range units {
 		if unit.IsAvailableForPurchase {
 			if offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000 {
-				return model.OfferStatusNew
+				return model.OfferStatusCodeNew
 			} else {
-				return model.OfferStatusSales
+				return model.OfferStatusCodeSales
 			}
 		}
 
 		if unit.IsReserved {
-			return model.OfferStatusInOrder
+			return model.OfferStatusCodeInOrder
 		}
 
 		if unit.VersionClosingReason == stockReasonReleased {
-			return model.OfferStatusSold
+			return model.OfferStatusCodeSold
 		}
 
 		if unit.VersionClosingReason == stockReasonReturned {
-			return model.OfferStatusReturnedToSeller
+			return model.OfferStatusCodeReturnedToSeller
 		}
 	}
 
-	return model.OfferStatusNew
+	return model.OfferStatusCodeNew
 }
