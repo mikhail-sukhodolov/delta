@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_read_service"
 	"log"
+	"offer-read-service/internal/grpcserver"
 	"os/signal"
 	"syscall"
 
@@ -26,6 +28,8 @@ func main() {
 	if err != nil {
 		log.Panicf("application could not been initialized: %v", err)
 	}
+
+	offer_read_service.RegisterOfferReadServiceServer(root.Server, grpcserver.NewServer(root))
 
 	if err = root.Run(ctx); err != nil {
 		log.Panicf("application terminated abnormally: %s", err)

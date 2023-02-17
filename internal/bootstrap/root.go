@@ -40,7 +40,8 @@ type Root struct {
 		Elasticsearch *elasticsearch.Client
 	}
 	Repositories struct {
-		Repo repository.OfferRepository
+		OfferRepository       repository.OfferRepository
+		OfferStatusRepository repository.OfferStatusRepository
 	}
 	Clients struct {
 		OfferClient       offer_service.OfferServiceClient
@@ -75,6 +76,7 @@ func NewRoot(config *Config, options ...Option) (*Root, error) {
 	if err != nil {
 		return nil, err
 	}
+	root.Logger = root.Logger.WithOptions(zap.AddStacktrace(zap.PanicLevel))
 
 	root.initGRPCServer()
 	root.initInfrastructure()
@@ -147,11 +149,11 @@ func (r *Root) initHTTPServer() {
 		indexingResult, err := r.Services.Indexator.Index(request.Context())
 		if err != nil {
 			writer.WriteHeader(500)
-			writer.Write([]byte(err.Error()))
+			_, _ = writer.Write([]byte(err.Error()))
 			return
 		}
 		writer.WriteHeader(200)
-		writer.Write([]byte(fmt.Sprintf(`result:%+v`+"\n", indexingResult)))
+		_, _ = writer.Write([]byte(fmt.Sprintf(`result:%+v`+"\n", indexingResult)))
 	}))
 
 	r.Infrastructure.HTTP = &http.Server{
@@ -259,7 +261,10 @@ func (r *Root) initRepositories() {
 	if err != nil {
 		panic(err)
 	}
-	r.Repositories.Repo = repo
+	r.Repositories.OfferRepository = repo
+
+	offerStatusRepository, _ := repository.NewOfferStatusRepository()
+	r.Repositories.OfferStatusRepository = offerStatusRepository
 }
 
 func (r *Root) initServices() {
@@ -267,7 +272,7 @@ func (r *Root) initServices() {
 		r.Clients.OfferClient,
 		r.Clients.CatalogReadClient,
 		r.Clients.StockClient,
-		r.Repositories.Repo,
+		r.Repositories.OfferRepository,
 		r.Logger,
 		r.Config.Elastic.IndexPerPage,
 	)

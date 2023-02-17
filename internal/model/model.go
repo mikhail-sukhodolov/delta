@@ -29,3 +29,19 @@ type Offer struct {
 	IsReturnedToSellerCalculateDate time.Time       `json:"offer.is_returned_to_seller_calculate_date"`
 	Indexed                         time.Time       `json:"offer.indexed"`
 }
+
+func (of Offer) GetStatusDate() time.Time {
+	switch of.Status {
+	case OfferStatusCodeNew:
+		return of.IsNewCalculateDate
+	case OfferStatusCodeSales:
+		return of.IsSalesCalculateDate
+	case OfferStatusCodeInOrder:
+		return of.IsOrderCalculateDate
+	case OfferStatusCodeSold:
+		return of.IsSoldCalculateDate
+	case OfferStatusCodeReturnedToSeller:
+		return of.IsReturnedToSellerCalculateDate
+	}
+	return time.Time{}
+}

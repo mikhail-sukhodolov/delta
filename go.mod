@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/elastic/go-elasticsearch/v8 v8.6.0
 	github.com/getsentry/sentry-go v0.18.0
+	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/google/uuid v1.3.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/joho/godotenv v1.5.1
@@ -15,10 +16,11 @@ require (
 	gitlab.int.tsum.com/core/libraries/corekit.git/healthcheck v0.0.0-20230214090732-1c1086efd200
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging v0.0.0-20230214090732-1c1086efd200
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing v0.0.0-20230214090732-1c1086efd200
-	gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.165.2
-	gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.0
+	gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.169.0
+	gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.1
 	go.uber.org/zap v1.24.0
 	google.golang.org/grpc v1.53.0
+	google.golang.org/protobuf v1.28.1
 )
 
 require (
@@ -30,7 +32,6 @@ require (
 	github.com/elastic/go-sysinfo v1.9.0 // indirect
 	github.com/elastic/go-windows v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.0 // indirect
@@ -69,7 +70,6 @@ require (
 	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	howett.net/plist v1.0.0 // indirect

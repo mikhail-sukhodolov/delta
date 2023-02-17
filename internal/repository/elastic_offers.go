@@ -12,7 +12,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
 	v1 "gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/common/search_kit/v1"
-	"gitlab.int.tsum.com/preowned/simona/delta/core.git/abstractquery"
 	"gitlab.int.tsum.com/preowned/simona/delta/core.git/abstractquery/builder"
 	"go.uber.org/zap"
 	"io"
@@ -80,6 +79,8 @@ func (e *elasticOfferRepo) Update(ctx context.Context, offers []model.Offer) err
 
 func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequest) (*ListResponse[model.Offer], error) {
 	logger := ctxzap.Extract(ctx)
+	p := *request.Pagination
+	request.Pagination = &p
 
 	offset := int64(0)
 	if request.Pagination != nil && request.Pagination.Page > 1 {
@@ -91,7 +92,6 @@ func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequ
 	if err != nil {
 		return nil, fmt.Errorf("builder.BuildFromSearchKit: %w", err)
 	}
-	abstractQuery.Condition = e.buildListCondition(request, abstractQuery.Condition)
 	selectStatement, err := abstractQuery.ToElasticSelect()
 	if err != nil {
 		return nil, fmt.Errorf("abstractQuery.ToElasticSelect: %w", err)
@@ -176,10 +176,4 @@ func elasticErr(resp *esapi.Response, err error) error {
 	}
 	resp.Body.Close()
 	return nil
-}
-
-func (*elasticOfferRepo) buildListCondition(_ v1.GetListRequest, condition abstractquery.Condition) abstractquery.Condition {
-	return abstractquery.NewAndCondition([]abstractquery.Condition{
-		condition,
-	})
 }
