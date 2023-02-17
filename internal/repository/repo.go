@@ -20,30 +20,29 @@ type OfferStatusRepository interface {
 	ListOfferStatus(context.Context) ([]model.OfferStatus, error)
 }
 
-type OfferStatusTempRepository struct {
-}
+type OfferStatusTempRepository struct{}
 
 func (r *OfferStatusTempRepository) ListOfferStatus(context.Context) ([]model.OfferStatus, error) {
 	return []model.OfferStatus{
-		model.OfferStatus{
+		{
 			Code:  model.OfferStatusCodeNew,
-			Title: "Новый",
+			Title: "Создано",
 		},
-		model.OfferStatus{
+		{
 			Code:  model.OfferStatusCodeSales,
-			Title: "В продаже",
+			Title: "Опубликовано",
 		},
-		model.OfferStatus{
+		{
 			Code:  model.OfferStatusCodeInOrder,
-			Title: "В заказе",
+			Title: "Заказано",
 		},
-		model.OfferStatus{
+		{
 			Code:  model.OfferStatusCodeSold,
-			Title: "Продан",
+			Title: "Продано",
 		},
-		model.OfferStatus{
+		{
 			Code:  model.OfferStatusCodeReturnedToSeller,
-			Title: "Возвращён",
+			Title: "Снят с продажи",
 		},
 	}, nil
 }
