@@ -178,7 +178,7 @@ const (
 )
 
 func calculateStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, units []*stock_service.StockUnit) model.OfferStatusCode {
-	if catalogReadOffers[offer.ItemCode] != nil {
+	if catalogReadOffers[offer.ItemCode] != nil && catalogReadOffers[offer.ItemCode].Item != nil && catalogReadOffers[offer.ItemCode].Item.InStock {
 		return model.OfferStatusCodeSales
 	}
 
