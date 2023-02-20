@@ -36,6 +36,27 @@ Unit tests:
   script:
     - go test -race ./...
 
+Full index Testing:
+  image: repo.int.tsum.com:443/tsum/preowned/golang:1.18
+  stage: .post
+  when: manual
+  script:
+    - 'curl "preowned-offer-read-service-testing-ingress.service.dev.tsum.ai:8146/full_index"'
+
+Full index Stable:
+  image: repo.int.tsum.com:443/tsum/preowned/golang:1.18
+  stage: .post
+  when: manual
+  script:
+    - 'curl "preowned-offer-read-service-stable-ingress.service.dev.tsum.ai:8146/full_index"'
+
+Full index Prod:
+  image: repo.int.tsum.com:443/tsum/preowned/golang:1.18
+  stage: .post
+  when: manual
+  script:
+    - 'curl "preowned-offer-read-service-prod-ingress.service.dev.tsum.ai:8146/full_index"'
+
 include:
   project: 'sysadmin/docker/nomad'
   file: 'include-ci/apps/preowned_offer_read_service.yml'
