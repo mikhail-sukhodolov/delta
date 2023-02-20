@@ -79,8 +79,6 @@ func (e *elasticOfferRepo) Update(ctx context.Context, offers []model.Offer) err
 
 func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequest) (*ListResponse[model.Offer], error) {
 	logger := ctxzap.Extract(ctx)
-	p := *request.Pagination
-	request.Pagination = &p
 
 	offset := int64(0)
 	if request.Pagination != nil && request.Pagination.Page > 1 {
