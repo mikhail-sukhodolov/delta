@@ -175,19 +175,20 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 			Indexed:                         time.Now(),
 		}
 
-		res.Status = s.calculateStatus(offer, catalogReadOffers, catalogWriteItems, units.StockUnits)
+		var date time.Time
+		res.Status, date = s.calculateStatus(offer, catalogReadOffers, catalogWriteItems, units.StockUnits)
 
 		switch {
-		case res.Status == model.OfferStatusCodeNew && offerFromDB.IsNewCalculateDate.IsZero():
-			res.IsNewCalculateDate = time.Now()
-		case res.Status == model.OfferStatusCodeSales && offerFromDB.IsSalesCalculateDate.IsZero():
-			res.IsSalesCalculateDate = time.Now()
+		case res.Status == model.OfferStatusCodeNew:
+			res.IsNewCalculateDate = date
+		case res.Status == model.OfferStatusCodeSales:
+			res.IsSalesCalculateDate = date
 		case res.Status == model.OfferStatusCodeInOrder:
-			res.IsOrderCalculateDate = time.Now()
-		case res.Status == model.OfferStatusCodeSold && offerFromDB.IsSoldCalculateDate.IsZero():
-			res.IsSoldCalculateDate = time.Now()
-		case res.Status == model.OfferStatusCodeReturnedToSeller && offerFromDB.IsReturnedToSellerCalculateDate.IsZero():
-			res.IsReturnedToSellerCalculateDate = time.Now()
+			res.IsOrderCalculateDate = date
+		case res.Status == model.OfferStatusCodeSold:
+			res.IsSoldCalculateDate = date
+		case res.Status == model.OfferStatusCodeReturnedToSeller:
+			res.IsReturnedToSellerCalculateDate = date
 		}
 
 		return res
@@ -201,9 +202,14 @@ const (
 	stockReasonMoved    = "moved"
 )
 
-func (s *indexator) calculateStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, catalogWriteOffers map[string]*catalog_write.ItemComposite, units []*stock_service.StockUnit) model.OfferStatusCode {
+func (s *indexator) calculateStatus(
+	offer *offer_service.Offer,
+	catalogReadOffers map[string]*catalog_read_service.ItemComposite,
+	catalogWriteOffers map[string]*catalog_write.ItemComposite,
+	units []*stock_service.StockUnit,
+) (model.OfferStatusCode, time.Time) {
 	if catalogReadOffers[offer.ItemCode] != nil && catalogReadOffers[offer.ItemCode].Item != nil && catalogReadOffers[offer.ItemCode].Item.InStock {
-		return model.OfferStatusCodeSales
+		return model.OfferStatusCodeSales, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 	}
 
 	units = lo.Filter(units, func(item *stock_service.StockUnit, _ int) bool {
@@ -220,40 +226,40 @@ func (s *indexator) calculateStatus(offer *offer_service.Offer, catalogReadOffer
 			if ok {
 				switch {
 				case item.Item.IsDraft:
-					return model.OfferStatusCodeNew
+					return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 				case !lo.Contains(item.Item.PublicationFlags, catalog_write.ItemPublicationFlag_ITEM_PUBLICATION_FLAG_VISIBLE_IOS):
-					return model.OfferStatusCodeNew
+					return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 				}
 			}
 
 			if offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000 {
-				return model.OfferStatusCodeNew
+				return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 			} else {
-				return model.OfferStatusCodeSales
+				return model.OfferStatusCodeSales, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 			}
 		}
 
 		if unit.IsReserved {
-			return model.OfferStatusCodeInOrder
+			return model.OfferStatusCodeInOrder, time.Now()
 		}
 
 		if unit.VersionClosingReason == stockReasonReleased {
-			return model.OfferStatusCodeSold
+			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonReturned {
-			return model.OfferStatusCodeReturnedToSeller
+			return model.OfferStatusCodeReturnedToSeller, unit.VersionClosedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonLost {
-			return model.OfferStatusCodeSales
+			return model.OfferStatusCodeSales, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonMoved {
-			return model.OfferStatusCodeNew
+			return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 		}
 
 	}
 
-	return model.OfferStatusCodeNew
+	return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 }
