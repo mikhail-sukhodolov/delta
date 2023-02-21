@@ -54,12 +54,12 @@ func createOrUpdateIndex(client *elasticsearch.Client, indexName string) error {
 	if getResponse.StatusCode == 404 {
 		err := elasticErr(client.Indices.Create(indexName, client.Indices.Create.WithBody(strings.NewReader(indexBody))))
 		if err != nil {
-			return err
+			return fmt.Errorf("can't create elastic index %s, error: %w", indexName, err)
 		}
 	} else if getResponse.StatusCode == 200 {
 		err := elasticErr(client.Indices.PutMapping([]string{indexName}, strings.NewReader(gjson.Get(indexBody, "mappings").Raw)))
 		if err != nil {
-			return err
+			return fmt.Errorf("can't update elastic index %s, error: %w", indexName, err)
 		}
 	}
 	return nil

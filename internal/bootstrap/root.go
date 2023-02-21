@@ -8,6 +8,7 @@ import (
 	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_read_service"
+	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_write"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
 	"google.golang.org/grpc"
@@ -44,9 +45,10 @@ type Root struct {
 		OfferStatusRepository repository.OfferStatusRepository
 	}
 	Clients struct {
-		OfferClient       offer_service.OfferServiceClient
-		CatalogReadClient catalog_read_service.CatalogReadSearchServiceClient
-		StockClient       stock_service.StockServiceClient
+		OfferClient        offer_service.OfferServiceClient
+		CatalogReadClient  catalog_read_service.CatalogReadSearchServiceClient
+		CatalogWriteClient catalog_write.CatalogWriteServiceClient
+		StockClient        stock_service.StockServiceClient
 	}
 	Services struct {
 		Indexator service.Indexator
@@ -227,6 +229,12 @@ func (r *Root) initClients() {
 	}
 	r.Clients.CatalogReadClient = catalog_read_service.NewCatalogReadSearchServiceClient(conn)
 
+	conn, err = dial(r.Config.GrpcClientConfig.CatalogWriteEndpoint)
+	if err != nil {
+		panic(err)
+	}
+	r.Clients.CatalogWriteClient = catalog_write.NewCatalogWriteServiceClient(conn)
+
 	conn, err = dial(r.Config.GrpcClientConfig.StockEndpoint)
 	if err != nil {
 		panic(err)
@@ -271,6 +279,7 @@ func (r *Root) initServices() {
 	r.Services.Indexator = service.NewIndexator(
 		r.Clients.OfferClient,
 		r.Clients.CatalogReadClient,
+		r.Clients.CatalogWriteClient,
 		r.Clients.StockClient,
 		r.Repositories.OfferRepository,
 		r.Logger,

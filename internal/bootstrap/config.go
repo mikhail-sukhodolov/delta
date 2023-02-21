@@ -29,9 +29,10 @@ type GRPCServerConfig struct {
 }
 
 type GRPCClientConfig struct {
-	OfferEndpoint       string `envconfig:"GRPC_OFFER_SERVICE_ADDR" required:"true"`
-	CatalogReadEndpoint string `envconfig:"GRPC_CATALOG_READ_SERVICE_ADDR" required:"true"`
-	StockEndpoint       string `envconfig:"GRPC_STOCK_SERVICE_ADDR" required:"true"`
+	OfferEndpoint        string `envconfig:"GRPC_OFFER_SERVICE_ADDR" required:"true"`
+	CatalogReadEndpoint  string `envconfig:"GRPC_CATALOG_READ_SERVICE_ADDR" required:"true"`
+	StockEndpoint        string `envconfig:"GRPC_STOCK_SERVICE_ADDR" required:"true"`
+	CatalogWriteEndpoint string `envconfig:"GRPC_CATALOG_WRITE_SERVICE_ADDR" required:"true"`
 }
 
 type HTTPServerConfig struct {

@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_read_service"
+	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_write"
 	v1 "gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/common/search_kit/v1"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
@@ -27,31 +28,34 @@ type Indexator interface {
 }
 
 type indexator struct {
-	lock              sync.Mutex
-	offerClient       offer_service.OfferServiceClient
-	catalogReadClient catalog_read_service.CatalogReadSearchServiceClient
-	stockClient       stock_service.StockServiceClient
-	repo              repository.OfferRepository
-	logger            *zap.Logger
-	perPage           int
+	lock               sync.Mutex
+	offerClient        offer_service.OfferServiceClient
+	catalogReadClient  catalog_read_service.CatalogReadSearchServiceClient
+	catalogWriteClient catalog_write.CatalogWriteServiceClient
+	stockClient        stock_service.StockServiceClient
+	repo               repository.OfferRepository
+	logger             *zap.Logger
+	perPage            int
 }
 
 func NewIndexator(
 	offerClient offer_service.OfferServiceClient,
 	catalogReadClient catalog_read_service.CatalogReadSearchServiceClient,
+	catalogWriteClient catalog_write.CatalogWriteServiceClient,
 	stockClient stock_service.StockServiceClient,
 	repo repository.OfferRepository,
 	logger *zap.Logger,
 	perPage int,
 ) Indexator {
 	return &indexator{
-		lock:              sync.Mutex{},
-		offerClient:       offerClient,
-		catalogReadClient: catalogReadClient,
-		stockClient:       stockClient,
-		repo:              repo,
-		logger:            logger.Named("indexator"),
-		perPage:           perPage,
+		lock:               sync.Mutex{},
+		offerClient:        offerClient,
+		catalogReadClient:  catalogReadClient,
+		catalogWriteClient: catalogWriteClient,
+		stockClient:        stockClient,
+		repo:               repo,
+		logger:             logger.Named("indexator"),
+		perPage:            perPage,
 	}
 }
 
@@ -67,7 +71,8 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 	for page := 1; ; page++ {
 		offers, err := s.offerClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
 			Sort: &offer_service.Sort{
-				Field: offer_service.SortField_ID,
+				Field:     offer_service.SortField_ID,
+				Direction: offer_service.SortDirection_DESC,
 			},
 			Pagination: &offer_service.Pagination{
 				Limit:  lo.ToPtr(int32(s.perPage)),
@@ -145,16 +150,33 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 		return item.Code, item
 	})
 
+	wItem, err := s.catalogWriteClient.GetItemListByCodes(ctx, &catalog_write.GetItemListByCodesRequest{
+		Codes: itemCodes,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("s.catalogWriteClient.GetItemListByCodes: %w", err)
+	}
+	catalogWriteItems := lo.SliceToMap(wItem.Data, func(item *catalog_write.ItemComposite) (string, *catalog_write.ItemComposite) {
+		return item.Item.Code, item
+	})
+
 	return lo.Map(offers, func(offer *offer_service.Offer, _ int) model.Offer {
+		offerFromDB := offersFromDB[offer.OfferCode]
+
 		res := model.Offer{
-			ID:       int(offer.Id),
-			Code:     offer.OfferCode,
-			SellerID: int(offer.SellerId),
-			Indexed:  time.Now(),
+			ID:                              int(offer.Id),
+			Code:                            offer.OfferCode,
+			SellerID:                        int(offer.SellerId),
+			IsNewCalculateDate:              offerFromDB.IsNewCalculateDate,
+			IsSalesCalculateDate:            offerFromDB.IsSalesCalculateDate,
+			IsOrderCalculateDate:            offerFromDB.IsOrderCalculateDate,
+			IsSoldCalculateDate:             offerFromDB.IsSoldCalculateDate,
+			IsReturnedToSellerCalculateDate: offerFromDB.IsReturnedToSellerCalculateDate,
+			Indexed:                         time.Now(),
 		}
 
-		res.Status = calculateStatus(offer, catalogReadOffers, units.StockUnits)
-		offerFromDB := offersFromDB[offer.OfferCode]
+		res.Status = s.calculateStatus(offer, catalogReadOffers, catalogWriteItems, units.StockUnits)
+
 		switch {
 		case res.Status == model.OfferStatusCodeNew && offerFromDB.IsNewCalculateDate.IsZero():
 			res.IsNewCalculateDate = time.Now()
@@ -175,9 +197,11 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 const (
 	stockReasonReleased = "released"
 	stockReasonReturned = "returned-to-seller"
+	stockReasonLost     = "lost"
+	stockReasonMoved    = "moved"
 )
 
-func calculateStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, units []*stock_service.StockUnit) model.OfferStatusCode {
+func (s *indexator) calculateStatus(offer *offer_service.Offer, catalogReadOffers map[string]*catalog_read_service.ItemComposite, catalogWriteOffers map[string]*catalog_write.ItemComposite, units []*stock_service.StockUnit) model.OfferStatusCode {
 	if catalogReadOffers[offer.ItemCode] != nil && catalogReadOffers[offer.ItemCode].Item != nil && catalogReadOffers[offer.ItemCode].Item.InStock {
 		return model.OfferStatusCodeSales
 	}
@@ -187,7 +211,21 @@ func calculateStatus(offer *offer_service.Offer, catalogReadOffers map[string]*c
 	})
 
 	for _, unit := range units {
+		if unit.OfferCode != offer.OfferCode {
+			continue
+		}
+
 		if unit.IsAvailableForPurchase {
+			item, ok := catalogWriteOffers[offer.ItemCode]
+			if ok {
+				switch {
+				case item.Item.IsDraft:
+					return model.OfferStatusCodeNew
+				case !lo.Contains(item.Item.PublicationFlags, catalog_write.ItemPublicationFlag_ITEM_PUBLICATION_FLAG_VISIBLE_IOS):
+					return model.OfferStatusCodeNew
+				}
+			}
+
 			if offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000 {
 				return model.OfferStatusCodeNew
 			} else {
@@ -206,6 +244,15 @@ func calculateStatus(offer *offer_service.Offer, catalogReadOffers map[string]*c
 		if unit.VersionClosingReason == stockReasonReturned {
 			return model.OfferStatusCodeReturnedToSeller
 		}
+
+		if unit.VersionClosingReason == stockReasonLost {
+			return model.OfferStatusCodeSales
+		}
+
+		if unit.VersionClosingReason == stockReasonMoved {
+			return model.OfferStatusCodeNew
+		}
+
 	}
 
 	return model.OfferStatusCodeNew
