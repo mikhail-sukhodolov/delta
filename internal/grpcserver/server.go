@@ -8,7 +8,6 @@ import (
 	v1 "gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/common/search_kit/v1"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_read_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
-	"gitlab.int.tsum.com/preowned/simona/delta/core.git/custom_error"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"offer-read-service/internal/bootstrap"
 	"offer-read-service/internal/model"
@@ -55,13 +54,6 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 	if err != nil {
 		return nil, fmt.Errorf("OfferRepository.ListOffer %w", err)
 	}
-	if listResponse.Total == 0 || len(listResponse.Data) == 0 {
-		return nil, &custom_error.ErrorNotFound{}
-	}
-
-	offersMap := lo.SliceToMap(listResponse.Data, func(item model.Offer) (string, model.Offer) {
-		return item.Code, item
-	})
 
 	searchOffersResponse, err := s.root.Clients.OfferClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
 		OfferCodes: lo.Map(listResponse.Data, func(item model.Offer, index int) string {
@@ -71,6 +63,9 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 	if err != nil {
 		return nil, fmt.Errorf("OfferClient.SearchOffers %w", err)
 	}
+	offersFromOfferSVCMap := lo.SliceToMap(searchOffersResponse.Offer, func(item *offer_service.Offer) (string, *offer_service.Offer) {
+		return item.OfferCode, item
+	})
 
 	listOfferStatuses, _ := s.root.Repositories.OfferStatusRepository.ListOfferStatus(ctx)
 	listOfferStatusesMap := lo.SliceToMap(listOfferStatuses, func(offerStatus model.OfferStatus) (model.OfferStatusCode, model.OfferStatus) {
@@ -82,23 +77,23 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 			Sort:       buildGRPCSortInfo(request.Data.Sort),
 			Pagination: buildGRPCPagination(request.Data.Pagination, listResponse.Total),
 		},
-		Offers: lo.Map(searchOffersResponse.Offer, func(item *offer_service.Offer, _ int) *offer_read_service.ListOffersResponse_Offer {
+		Offers: lo.Map(listResponse.Data, func(item model.Offer, _ int) *offer_read_service.ListOffersResponse_Offer {
 			return &offer_read_service.ListOffersResponse_Offer{
-				Id:            item.Id,
-				OfferCode:     item.OfferCode,
-				Price:         item.Price,
-				SellerId:      item.SellerId,
-				ItemCode:      item.ItemCode,
-				InvoiceNumber: item.InvoiceNumber,
-				Reason:        item.Reason,
-				CreatedAt:     item.CreatedAt,
-				ClosedAt:      item.ClosedAt,
-				TaxRate:       item.TaxRate,
-				InvoiceDate:   item.InvoiceDate,
+				Id:            int64(item.ID),
+				OfferCode:     item.Code,
+				Price:         offersFromOfferSVCMap[item.Code].Price,
+				SellerId:      int64(item.SellerID),
+				ItemCode:      offersFromOfferSVCMap[item.Code].ItemCode,
+				InvoiceNumber: offersFromOfferSVCMap[item.Code].InvoiceNumber,
+				Reason:        offersFromOfferSVCMap[item.Code].Reason,
+				CreatedAt:     offersFromOfferSVCMap[item.Code].CreatedAt,
+				ClosedAt:      offersFromOfferSVCMap[item.Code].ClosedAt,
+				TaxRate:       offersFromOfferSVCMap[item.Code].TaxRate,
+				InvoiceDate:   offersFromOfferSVCMap[item.Code].InvoiceDate,
 				Status: &offer_read_service.ListOffersResponse_Offer_Status{
-					Title:         listOfferStatusesMap[offersMap[item.OfferCode].Status].Title,
-					Code:          string(offersMap[item.OfferCode].Status),
-					CalculateDate: timestamppb.New(offersMap[item.OfferCode].GetStatusDate()),
+					Title:         listOfferStatusesMap[item.Status].Title,
+					Code:          string(item.Status),
+					CalculateDate: timestamppb.New(item.GetStatusDate()),
 				},
 			}
 		}),
@@ -120,11 +115,27 @@ func buildListOffersRepoRequest(request offer_read_service.ListOffersRequest) v1
 }
 
 func getOfferStatusFilterValue(filters *v1.GetListRequest_FilterGroup) string {
-	if filters != nil && len(filters.Filters) == 1 && filters.Filters[0] != nil &&
-		filters.Filters[0].Field == fieldOfferStatus && filters.Filters[0].GetFilterTextIn() != nil &&
-		len(filters.Filters[0].GetFilterTextIn().Value) == 1 {
-		return filters.Filters[0].GetFilterTextIn().Value[0]
+	if filters == nil {
+		return ""
 	}
+
+	for _, filter := range filters.Filters {
+		if filter.Field == "offer.status" {
+			switch {
+			case lo.Contains(filter.GetFilterTextIn().Value, string(model.OfferStatusCodeNew)):
+				return "new"
+			case lo.Contains(filter.GetFilterTextIn().Value, string(model.OfferStatusCodeSales)):
+				return "sales"
+			case lo.Contains(filter.GetFilterTextIn().Value, string(model.OfferStatusCodeInOrder)):
+				return "order"
+			case lo.Contains(filter.GetFilterTextIn().Value, string(model.OfferStatusCodeSold)):
+				return "sold"
+			case lo.Contains(filter.GetFilterTextIn().Value, string(model.OfferStatusCodeReturnedToSeller)):
+				return "returned_to_seller"
+			}
+		}
+	}
+
 	return ""
 }
 
