@@ -95,6 +95,7 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 			return nil, fmt.Errorf("can't update in elastic %w", err)
 		}
 
+		s.logger.Info("indexed documents", zap.Int("total", numIndexed))
 		numIndexed += len(offers.Offer)
 		if len(offers.Offer) < s.perPage {
 			break

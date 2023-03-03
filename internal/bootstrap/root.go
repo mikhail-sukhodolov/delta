@@ -68,7 +68,7 @@ func (r *Root) RegisterStopHandler(stopHandler func()) {
 
 type Option func(app *Root)
 
-func NewRoot(config *Config, options ...Option) (*Root, error) {
+func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, error) {
 	root := Root{Config: config}
 
 	var err error
@@ -82,7 +82,7 @@ func NewRoot(config *Config, options ...Option) (*Root, error) {
 
 	root.initGRPCServer()
 	root.initInfrastructure()
-	root.initHTTPServer()
+	root.initHTTPServer(ctx)
 	root.initClients()
 	root.initRepositories()
 	root.initServices()
@@ -131,7 +131,7 @@ func (r *Root) stop() {
 	wg.Wait()
 }
 
-func (r *Root) initHTTPServer() {
+func (r *Root) initHTTPServer(ctx context.Context) {
 	mux := http.NewServeMux()
 
 	// Init pprof endpoints
@@ -148,14 +148,18 @@ func (r *Root) initHTTPServer() {
 		healthcheck.WithReleaseID(r.Config.ReleaseID),
 	))
 	mux.Handle("/full_index", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		indexingResult, err := r.Services.Indexator.Index(request.Context())
-		if err != nil {
-			writer.WriteHeader(500)
-			_, _ = writer.Write([]byte(err.Error()))
-			return
-		}
+		go func() {
+			r.Logger.Info("indexator is starting")
+
+			_, err := r.Services.Indexator.Index(ctx)
+			if err != nil {
+				r.Logger.Error("couldn't indexing", zap.Error(err))
+			}
+
+			r.Logger.Info("indexator finished")
+		}()
+
 		writer.WriteHeader(200)
-		_, _ = writer.Write([]byte(fmt.Sprintf(`result:%+v`+"\n", indexingResult)))
 	}))
 
 	r.Infrastructure.HTTP = &http.Server{

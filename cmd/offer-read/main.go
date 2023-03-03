@@ -24,7 +24,7 @@ func main() {
 	}
 	config.ReleaseID = releaseID
 
-	root, err := bootstrap.NewRoot(config)
+	root, err := bootstrap.NewRoot(ctx, config)
 	if err != nil {
 		log.Panicf("application could not been initialized: %v", err)
 	}
