@@ -41,21 +41,21 @@ Full index Testing:
   stage: .post
   when: manual
   script:
-    - 'curl "preowned-offer-read-service-testing-ingress.service.dev.tsum.ai:8146/full_index"'
+    - 'curl "preowned-offer-read-service-prod-http.ingress.prod.tsum.ai:8146/full_index"'
 
 Full index Stable:
   image: repo.int.tsum.com:443/tsum/preowned/golang:1.18
   stage: .post
   when: manual
   script:
-    - 'curl "preowned-offer-read-service-stable-ingress.service.dev.tsum.ai:8146/full_index"'
+    - 'curl "preowned-offer-read-service-stable-http.ingress.dev.tsum.ai:8146/full_index"'
 
 Full index Prod:
   image: repo.int.tsum.com:443/tsum/preowned/golang:1.18
   stage: .post
   when: manual
   script:
-    - 'curl "preowned-offer-read-service-prod-ingress.service.dev.tsum.ai:8146/full_index"'
+    - 'curl "preowned-offer-read-service-testing-http.ingress.dev.tsum.ai:8146/full_index"'
 
 include:
   project: 'sysadmin/docker/nomad'

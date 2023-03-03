@@ -70,13 +70,13 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 	numIndexed := 0
 	for page := 1; ; page++ {
 		offers, err := s.offerClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
-			Sort: &offer_service.Sort{
-				Field:     offer_service.SortField_ID,
-				Direction: offer_service.SortDirection_DESC,
-			},
 			Pagination: &offer_service.Pagination{
 				Limit:  lo.ToPtr(int32(s.perPage)),
 				Offset: lo.ToPtr(int32((page - 1) * s.perPage)),
+			},
+			Sort: &offer_service.Sort{
+				Field:     offer_service.SortField_ID,
+				Direction: offer_service.SortDirection_DESC,
 			},
 		})
 		if err != nil {
@@ -90,13 +90,15 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 		}
 		logger.Sugar().Infof("enrich offers %d", len(richOffers))
 
-		err = s.repo.Update(ctx, richOffers)
-		if err != nil {
-			return nil, fmt.Errorf("can't update in elastic %w", err)
+		if len(richOffers) > 0 {
+			err = s.repo.Update(ctx, richOffers)
+			if err != nil {
+				return nil, fmt.Errorf("can't update in elastic %w", err)
+			}
 		}
 
 		s.logger.Info("indexed documents", zap.Int("total", numIndexed))
-		numIndexed += len(offers.Offer)
+		numIndexed += len(richOffers)
 		if len(offers.Offer) < s.perPage {
 			break
 		}
@@ -160,6 +162,17 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 	catalogWriteItems := lo.SliceToMap(wItem.Data, func(item *catalog_write.ItemComposite) (string, *catalog_write.ItemComposite) {
 		return item.Item.Code, item
 	})
+
+	offers = lo.Filter(offers, func(offer *offer_service.Offer, _ int) bool {
+		ok := catalogWriteItems[offer.ItemCode] != nil
+		if !ok {
+			s.logger.Error("catalog write doesn't have offer", zap.String("item_code", offer.ItemCode))
+		}
+		return ok
+	})
+	if len(offers) == 0 {
+		return nil, nil
+	}
 
 	return lo.Map(offers, func(offer *offer_service.Offer, _ int) model.Offer {
 		offerFromDB := offersFromDB[offer.OfferCode]
