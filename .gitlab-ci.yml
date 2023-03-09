@@ -18,7 +18,7 @@ variables:
     ARCH: amd64
     VERSION: "$CI_COMMIT_SHORT_SHA"
   script:
-    - git config --global url."http://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.int.tsum.com".insteadOf "https://gitlab.int.tsum.com"
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.int.tsum.com".insteadOf "https://gitlab.int.tsum.com"
     - export RELEASE_STR=$CI_COMMIT_TAG; if [ -z "$RELEASE_STR" ]; then RELEASE_STR=$CI_COMMIT_SHORT_SHA; fi;
     - make dist
     - tar -cvzf artifact.tar.gz -C build/distr/${PLATFORM}-${ARCH} .
@@ -32,7 +32,7 @@ Unit tests:
   image:
     name: repo.int.tsum.com:443/tsum/preowned/golang:1.18
   before_script:
-    - git config --global url."http://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.int.tsum.com".insteadOf "https://gitlab.int.tsum.com"
+    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.int.tsum.com".insteadOf "https://gitlab.int.tsum.com"
   script:
     - go test -race ./...
 

@@ -80,17 +80,11 @@ func (e *elasticOfferRepo) Update(ctx context.Context, offers []model.Offer) err
 func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequest) (*ListResponse[model.Offer], error) {
 	logger := ctxzap.Extract(ctx)
 
-	offset := int64(0)
-	if request.Pagination != nil && request.Pagination.Page > 1 {
-		offset = (request.Pagination.Page - 1) * int64(request.Pagination.PerPage)
-		request.Pagination.Page = 1 // For resetting offset build, because elastic can't translate it.
-	}
-
 	abstractQuery, err := builder.BuildFromSearchKit(request, []string{"*"}, e.indexName)
 	if err != nil {
 		return nil, fmt.Errorf("builder.BuildFromSearchKit: %w", err)
 	}
-	selectStatement, err := abstractQuery.ToElasticSelect()
+	selectStatement, offset, err := abstractQuery.ToElasticSelect()
 	if err != nil {
 		return nil, fmt.Errorf("abstractQuery.ToElasticSelect: %w", err)
 	}
@@ -119,7 +113,8 @@ func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequ
 		e.client.Search.WithBody(responseResp.Body),
 		e.client.Search.WithContext(ctx),
 		e.client.Search.WithSource("true"),
-		e.client.Search.WithFrom(int(offset)),
+		e.client.Search.WithFrom(offset),
+		e.client.Search.WithTrackTotalHits(true),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("elastic searchResp, error: %w", err)
