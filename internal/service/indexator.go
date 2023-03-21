@@ -211,6 +211,7 @@ func (s *indexator) enrich(ctx context.Context, offers []*offer_service.Offer) (
 
 const (
 	stockReasonReleased = "released"
+	stockReasonSold     = "sold"
 	stockReasonReturned = "returned-to-seller"
 	stockReasonLost     = "lost"
 	stockReasonMoved    = "moved"
@@ -258,6 +259,10 @@ func (s *indexator) calculateStatus(
 		}
 
 		if unit.VersionClosingReason == stockReasonReleased {
+			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
+		}
+
+		if unit.VersionClosingReason == stockReasonSold {
 			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
 		}
 
