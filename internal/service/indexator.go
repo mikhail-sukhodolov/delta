@@ -255,7 +255,7 @@ func (s *indexator) calculateStatus(
 		}
 
 		if unit.IsReserved {
-			return model.OfferStatusCodeInOrder, time.Now()
+			return model.OfferStatusCodeInOrder, unit.ReservedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonReleased {
