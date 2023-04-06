@@ -17,7 +17,7 @@ require (
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging v0.0.0-20230309071905-cb2dbe85d5c2
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing v0.0.0-20230309071905-cb2dbe85d5c2
 	gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.186.2
-	gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.3
+	gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.6
 	go.uber.org/zap v1.24.0
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.29.0
