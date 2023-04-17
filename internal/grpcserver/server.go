@@ -64,6 +64,9 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 		return nil, fmt.Errorf("OfferClient.SearchOffers %w", err)
 	}
 	offersFromOfferSVCMap := lo.SliceToMap(searchOffersResponse.Offer, func(item *offer_service.Offer) (string, *offer_service.Offer) {
+		if item == nil {
+			return "", nil
+		}
 		return item.OfferCode, item
 	})
 
@@ -72,6 +75,10 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 		return offerStatus.Code, offerStatus
 	})
 
+	listResponse.Data = lo.Filter(listResponse.Data, func(item model.Offer, _ int) bool {
+		_, ok := offersFromOfferSVCMap[item.Code]
+		return ok
+	})
 	return &offer_read_service.ListOffersResponse{
 		Meta: &v1.ResponseMeta{
 			Sort:       buildGRPCSortInfo(request.Data.Sort),
