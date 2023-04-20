@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/getsentry/sentry-go"
-	grpc_zap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_read_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_write"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
+	"go.elastic.co/apm/module/apmgrpc/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -184,7 +184,6 @@ func (r *Root) initGRPCServer() {
 		panic(err)
 	}
 
-	grpc_zap.JsonPbMarshaller = marshaller
 	options := []grpc_helper.ServerOption{
 		grpc_helper.WithKeepaliveInterval(r.Config.GRPC.KeepaliveTime),
 		grpc_helper.WithKeepaliveTimeout(r.Config.GRPC.KeepaliveTimeout),
@@ -196,6 +195,7 @@ func (r *Root) initGRPCServer() {
 			Environment: r.Config.ElasticAPM.Environment,
 		}),
 		grpc_helper.WithReleaseID(r.Config.ReleaseID),
+		grpc_helper.WithPayloadJsonPbMarshaller(marshaller),
 	}
 
 	if r.Config.GRPC.RegisterReflectionServer {
@@ -251,6 +251,7 @@ func dial(target string) (*grpc.ClientConn, error) {
 	conn, err := grpc.Dial(
 		target,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(apmgrpc.NewUnaryClientInterceptor()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("grpc.Dial to '%s' service: '%w'", target, err)
