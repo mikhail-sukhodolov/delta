@@ -393,10 +393,14 @@ gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging v0.0.0-2023
 gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging v0.0.0-20230309071905-cb2dbe85d5c2/go.mod h1:enNTwlujM7soJpjd7Cj9U2/sDFSNXn4NHBaHZFQZrsQ=
 gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing v0.0.0-20230309071905-cb2dbe85d5c2 h1:j3q0hePWQ5kfC5f/00eAdn4s4nVcY+FlXNb/hmE0aQ0=
 gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing v0.0.0-20230309071905-cb2dbe85d5c2/go.mod h1:EMv3AvzpuocNlU2ZFOH8tLORbWoxyiFplb8WzRKpApg=
+gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.186.2 h1:7QyWC5J03+pC+61ZCp3Hu1wAYrsBhmI73fhXsLyXXMA=
+gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.186.2/go.mod h1:PG4qhnKVF7mAxLspSNMKcDJ2tShy3jSMNil/9zelsPk=
 gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.212.3 h1:uiEambGafh+JtxgoR+44XnckS/XxEJSUEmUuDnz++ns=
 gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.212.3/go.mod h1:PG4qhnKVF7mAxLspSNMKcDJ2tShy3jSMNil/9zelsPk=
-gitlab.int.tsum.com/preowned/simona/delta/core.git v1.0.1 h1:hzgpJhw9x8Dsppzz8RvPYVOFas7a4humd6gho4OHedU=
-gitlab.int.tsum.com/preowned/simona/delta/core.git v1.0.1/go.mod h1:yBPuLNHrF2QF7gBwKC8tu0oLHnUdhI9e/0iH972VZrM=
+gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.3 h1:Wd1Y/ha+C0uqaNtBsakh/sF+83troOkgnUmijNztklI=
+gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.3/go.mod h1:UtjvsPkdcjn3Lc+Q+9pwh0KoOLM+BxUztz5U4kGqXpk=
+gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.6 h1:B1VRZbZK4SCbZ6eHw6xAoJd+6TByXx4Tgt5spDDyFbE=
+gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.6/go.mod h1:yBPuLNHrF2QF7gBwKC8tu0oLHnUdhI9e/0iH972VZrM=
 go.elastic.co/apm/module/apmgrpc/v2 v2.2.0 h1:r/EznLasHYZh0r+4/YOhDsQxaLzcV7qXl8UT/81BC4s=
 go.elastic.co/apm/module/apmgrpc/v2 v2.2.0/go.mod h1:DjyGlpmyeSSwp2R7eiOcAnjjKBjZTuuQUrMhdM03eOc=
 go.elastic.co/apm/module/apmhttp/v2 v2.2.0 h1:FH+rZLLfkKiqhjqHZjiSdi8jn6VcqIkwUR2lLuWQFZU=
