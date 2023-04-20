@@ -17,7 +17,8 @@ require (
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging v0.0.0-20230309071905-cb2dbe85d5c2
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing v0.0.0-20230309071905-cb2dbe85d5c2
 	gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.212.3
-	gitlab.int.tsum.com/preowned/simona/delta/core.git v0.3.6
+	gitlab.int.tsum.com/preowned/simona/delta/core.git v1.0.1
+	go.elastic.co/apm/module/apmgrpc/v2 v2.2.0
 	go.uber.org/zap v1.24.0
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.29.0
@@ -57,7 +58,6 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	gitlab.int.tsum.com/core/libraries/corekit.git/grpcerrors v0.0.0-20230309071905-cb2dbe85d5c2 // indirect
-	go.elastic.co/apm/module/apmgrpc/v2 v2.2.0 // indirect
 	go.elastic.co/apm/module/apmhttp/v2 v2.2.0 // indirect
 	go.elastic.co/apm/v2 v2.2.0 // indirect
 	go.elastic.co/fastjson v1.1.0 // indirect
