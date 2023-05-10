@@ -24,6 +24,7 @@ type Config struct {
 
 type IndexatorConfig struct {
 	SleepTimeout time.Duration `envconfig:"SLEEP_TIMEOUT" default:"10s" required:"true"`
+	IndexPerPage int           `envconfig:"INDEX_PER_PAGE" default:"50" required:"true"`
 }
 
 type GRPCServerConfig struct {
@@ -59,7 +60,6 @@ type ElasticAPM struct {
 type ElasticConfig struct {
 	Addresses      []string `envconfig:"ADDRESSES" required:"true"`
 	OfferIndexName string   `envconfig:"OFFER_INDEX_NAME" default:"delta.offer_index" required:"true"`
-	IndexPerPage   int      `envconfig:"INDEX_PER_PAGE" default:"100" required:"true"`
 }
 
 func NewConfig() (*Config, error) {

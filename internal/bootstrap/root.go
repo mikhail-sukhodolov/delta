@@ -287,7 +287,7 @@ func (r *Root) initServices() {
 		r.Clients.StockClient,
 		r.Repositories.OfferRepository,
 		r.Logger,
-		r.Config.Elastic.IndexPerPage,
+		r.Config.IndexatorConfig.IndexPerPage,
 		r.Config.IndexatorConfig.SleepTimeout,
 	)
 }
