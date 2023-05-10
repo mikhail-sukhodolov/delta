@@ -5,12 +5,18 @@ import (
 	"fmt"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/getsentry/sentry-go"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gitlab.int.tsum.com/core/libraries/corekit.git/healthcheck"
+	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_read_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_write"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
-	"go.elastic.co/apm/module/apmgrpc/v2"
+	grpc_helper "gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc"
+	"gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc/interceptor"
+	"go.elastic.co/apm/module/apmgrpc"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,13 +26,6 @@ import (
 	"offer-read-service/internal/repository"
 	"offer-read-service/internal/service"
 	"sync"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"gitlab.int.tsum.com/core/libraries/corekit.git/healthcheck"
-	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging"
-	grpc_helper "gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc"
-	"gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc/interceptor"
-	"go.uber.org/zap"
 )
 
 const (
@@ -289,6 +288,7 @@ func (r *Root) initServices() {
 		r.Repositories.OfferRepository,
 		r.Logger,
 		r.Config.Elastic.IndexPerPage,
+		r.Config.IndexatorConfig.SleepTimeout,
 	)
 }
 

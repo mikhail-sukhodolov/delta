@@ -19,6 +19,11 @@ type Config struct {
 	Sentry           SentryConfig
 	ElasticAPM       ElasticAPM
 	Elastic          ElasticConfig `envconfig:"ELASTIC"`
+	IndexatorConfig  IndexatorConfig
+}
+
+type IndexatorConfig struct {
+	SleepTimeout time.Duration `envconfig:"SLEEP_TIMEOUT" default:"10s" required:"true"`
 }
 
 type GRPCServerConfig struct {
