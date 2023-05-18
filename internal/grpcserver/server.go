@@ -8,6 +8,7 @@ import (
 	v1 "gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/common/search_kit/v1"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_read_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"offer-read-service/internal/bootstrap"
 	"offer-read-service/internal/model"
@@ -56,14 +57,16 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 		return nil, fmt.Errorf("OfferRepository.ListOffer %w", err)
 	}
 
+	const maxMsgSize = 1024 * 1024 * 50
 	searchOffersResponse, err := s.root.Clients.OfferClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
 		OfferCodes: lo.Map(listResponse.Data, func(item model.Offer, index int) string {
 			return item.Code
 		}),
-	})
+	}, grpc.MaxCallRecvMsgSize(maxMsgSize))
 	if err != nil {
-		return nil, fmt.Errorf("OfferClient.SearchOffers %w", err)
+		return nil, fmt.Errorf("OfferClient.SearchOffers: %w", err)
 	}
+
 	offersFromOfferSVCMap := lo.SliceToMap(searchOffersResponse.Offer, func(item *offer_service.Offer) (string, *offer_service.Offer) {
 		if item == nil {
 			return "", nil
