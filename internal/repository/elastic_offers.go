@@ -13,6 +13,7 @@ import (
 	"github.com/tidwall/gjson"
 	v1 "gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/common/search_kit/v1"
 	"gitlab.int.tsum.com/preowned/simona/delta/core.git/abstractquery/builder"
+	"gitlab.int.tsum.com/preowned/simona/delta/core.git/custom_error"
 	"go.uber.org/zap"
 	"io"
 	"offer-read-service/internal/model"
@@ -21,6 +22,9 @@ import (
 
 //go:embed index_body.json
 var indexBody string
+
+//go:embed index_settings.json
+var indexSettings string
 
 type elasticOfferRepo struct {
 	client    *elasticsearch.Client
@@ -48,16 +52,21 @@ func NewElasticRepo(client *elasticsearch.Client, indexName string) (OfferReposi
 
 func createOrUpdateIndex(client *elasticsearch.Client, indexName string) error {
 	getResponse, err := client.Indices.Get([]string{indexName})
+	defer getResponse.Body.Close()
 	if err != nil {
 		return fmt.Errorf("can't get elastic index %s, error: %w", indexName, err)
 	}
 	if getResponse.StatusCode == 404 {
-		err := elasticErr(client.Indices.Create(indexName, client.Indices.Create.WithBody(strings.NewReader(indexBody))))
+		err := translateElasticError(client.Indices.Create(indexName, client.Indices.Create.WithBody(strings.NewReader(indexBody))))
 		if err != nil {
 			return fmt.Errorf("can't create elastic index %s, error: %w", indexName, err)
 		}
 	} else if getResponse.StatusCode == 200 {
-		err := elasticErr(client.Indices.PutMapping([]string{indexName}, strings.NewReader(gjson.Get(indexBody, "mappings").Raw)))
+		err := translateElasticError(client.Indices.PutSettings(strings.NewReader(indexSettings), client.Indices.PutSettings.WithIndex(indexName)))
+		if err != nil {
+			return err
+		}
+		err = translateElasticError(client.Indices.PutMapping([]string{indexName}, strings.NewReader(gjson.Get(indexBody, "mappings").Raw)))
 		if err != nil {
 			return fmt.Errorf("can't update elastic index %s, error: %w", indexName, err)
 		}
@@ -70,11 +79,13 @@ func (e *elasticOfferRepo) Update(ctx context.Context, offers []model.Offer) err
 	if err != nil {
 		return err
 	}
-	return elasticErr(e.client.Bulk(
+	response, err := e.client.Bulk(
 		reader,
 		e.client.Bulk.WithIndex(e.indexName),
 		e.client.Bulk.WithContext(ctx),
-	))
+	)
+	defer response.Body.Close()
+	return translateElasticError(response, err)
 }
 
 func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequest) (*ListResponse[model.Offer], error) {
@@ -97,30 +108,26 @@ func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequ
 		return nil, fmt.Errorf("json.Marshal: %w", err)
 	}
 	logger.Debug("translating elastic", zap.String("query", selectStatement))
-	responseResp, err := e.client.SQL.Translate(
+	translateResp, err := e.client.SQL.Translate(
 		bytes.NewBuffer(buf),
 		e.client.SQL.Translate.WithContext(ctx),
 	)
+	err = translateElasticError(translateResp, err)
 	if err != nil {
-		return nil, fmt.Errorf("e.client.SQL.Translate: %w", err)
+		return nil, fmt.Errorf("ListOffer Translate error: %w", err)
 	}
-	if responseResp.IsError() {
-		return nil, fmt.Errorf("responseResp.IsError: %s", responseResp.String())
-	}
-	defer responseResp.Body.Close()
+	defer translateResp.Body.Close()
 	searchResp, err := e.client.Search(
 		e.client.Search.WithIndex(e.indexName),
-		e.client.Search.WithBody(responseResp.Body),
+		e.client.Search.WithBody(translateResp.Body),
 		e.client.Search.WithContext(ctx),
 		e.client.Search.WithSource("true"),
 		e.client.Search.WithFrom(offset),
 		e.client.Search.WithTrackTotalHits(true),
 	)
+	err = translateElasticError(searchResp, err)
 	if err != nil {
-		return nil, fmt.Errorf("elastic searchResp, error: %w", err)
-	}
-	if searchResp.IsError() {
-		return nil, fmt.Errorf("elastic searchResp, error %s", searchResp.String())
+		return nil, fmt.Errorf("ListOffer Search error: %w", err)
 	}
 	defer searchResp.Body.Close()
 
@@ -143,6 +150,24 @@ func (e *elasticOfferRepo) ListOffer(ctx context.Context, request v1.GetListRequ
 	}, nil
 }
 
+func translateElasticError(searchResp *esapi.Response, err error) error {
+	if err != nil {
+		return err
+	}
+	if searchResp == nil {
+		return nil
+	}
+	if searchResp.IsError() {
+		if searchResp.StatusCode >= 500 {
+			return fmt.Errorf("elastic response error %s", searchResp.String())
+		}
+		if searchResp.StatusCode >= 400 {
+			return &custom_error.InvalidArgument{Message: fmt.Sprintf("elastic searchResp, error %s", searchResp.String())}
+		}
+	}
+	return nil
+}
+
 func modelsToReader(offers []model.Offer) (io.Reader, error) {
 	buffer := bytes.NewBuffer(nil)
 	for _, o := range offers {
@@ -158,15 +183,4 @@ func modelsToReader(offers []model.Offer) (io.Reader, error) {
 		buffer.WriteByte('\n')
 	}
 	return buffer, nil
-}
-
-func elasticErr(resp *esapi.Response, err error) error {
-	if err != nil {
-		return fmt.Errorf("elastic response, error: %w", err)
-	}
-	if resp.IsError() {
-		return fmt.Errorf("elastic response, response %s", resp.String())
-	}
-	resp.Body.Close()
-	return nil
 }
