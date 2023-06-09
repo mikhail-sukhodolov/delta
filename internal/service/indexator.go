@@ -268,7 +268,7 @@ func (s *indexator) calculateStatus(
 		}
 
 		if unit.VersionClosingReason == stockReasonReleased {
-			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
+			return model.OfferStatusCodeInOrder, unit.VersionClosedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonSold {
