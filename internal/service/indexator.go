@@ -263,16 +263,16 @@ func (s *indexator) calculateStatus(
 			}
 		}
 
+		if unit.VersionClosingReason == stockReasonSold {
+			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
+		}
+
 		if unit.IsReserved {
 			return model.OfferStatusCodeInOrder, unit.ReservedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonReleased {
 			return model.OfferStatusCodeInOrder, unit.VersionClosedAt.AsTime()
-		}
-
-		if unit.VersionClosingReason == stockReasonSold {
-			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonReturned {
