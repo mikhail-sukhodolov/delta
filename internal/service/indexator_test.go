@@ -44,10 +44,8 @@ func Test_indexator_calculateStatus(t *testing.T) {
 		want   model.OfferStatusCode
 		want1  time.Time
 	}{
-		// TODO: Add test cases.
 		{
-			name:   "stockReasonReleased",
-			fields: fields{},
+			name: "stockReasonReleased",
 			args: args{
 				offer: &offer_service.Offer{
 					Id:        1,
@@ -80,6 +78,39 @@ func Test_indexator_calculateStatus(t *testing.T) {
 				},
 			},
 			want:  model.OfferStatusCodeInOrder,
+			want1: testTime,
+		},
+		{
+			name: "nil_price",
+			args: args{
+				offer: &offer_service.Offer{
+					Id:        1,
+					OfferCode: "OFFER-CODE-2",
+					Price:     nil,
+					SellerId:  1,
+					ItemCode:  "ITEM-CODE-2",
+				},
+				catalogReadOffers: map[string]*catalog_read_service.ItemComposite{
+					"ITEM-CODE-2": {
+						Item: &catalog_read_service.Item{InStock: false},
+					},
+				},
+				catalogWriteOffers: map[string]*catalog_write.ItemComposite{
+					"ITEM-CODE-2": {
+						Item: &catalog_write.Item{
+							CreatedAt: timestamppb.New(testTime),
+						},
+					},
+				},
+				units: []*stock_service.StockUnit{
+					{
+						OfferCode:            "OFFER-CODE-1",
+						VersionClosingReason: "released",
+						VersionClosedAt:      timestamppb.New(testTime),
+					},
+				},
+			},
+			want:  model.OfferStatusCodeNew,
 			want1: testTime,
 		},
 	}

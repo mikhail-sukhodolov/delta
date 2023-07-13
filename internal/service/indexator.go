@@ -87,6 +87,7 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 				Field:     offer_service.SortField_ID,
 				Direction: offer_service.SortDirection_DESC,
 			},
+			PriceFilter: offer_service.OfferPriceFilter_OFFER_PRICE_FILTER_WITH_EMPTY_PRICE,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("can't ListUsers %w", err)
@@ -256,7 +257,7 @@ func (s *indexator) calculateStatus(
 				}
 			}
 
-			if offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000 {
+			if offer.Price == nil || (offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000) {
 				return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 			} else {
 				return model.OfferStatusCodeSales, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
