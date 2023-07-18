@@ -36,7 +36,6 @@ type indexator struct {
 	repo               repository.OfferRepository
 	logger             *zap.Logger
 	perPage            int
-	sleepTimeout       time.Duration
 }
 
 func NewIndexator(
@@ -47,7 +46,6 @@ func NewIndexator(
 	repo repository.OfferRepository,
 	logger *zap.Logger,
 	perPage int,
-	sleepTimeout time.Duration,
 ) Indexator {
 	return &indexator{
 		lock:               sync.Mutex{},
@@ -58,7 +56,6 @@ func NewIndexator(
 		repo:               repo,
 		logger:             logger.Named("indexator"),
 		perPage:            perPage,
-		sleepTimeout:       sleepTimeout,
 	}
 }
 
@@ -72,12 +69,6 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 	started := time.Now()
 	numIndexed := 0
 	for page := 1; ; page++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(s.sleepTimeout):
-		}
-
 		offers, err := s.offerClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
 			Pagination: &offer_service.Pagination{
 				Limit:  lo.ToPtr(int32(s.perPage)),

@@ -26,7 +26,6 @@ func Test_indexator_calculateStatus(t *testing.T) {
 		repo               repository.OfferRepository
 		logger             *zap.Logger
 		perPage            int
-		sleepTimeout       time.Duration
 	}
 
 	testTime := time.Now().UTC()
@@ -125,7 +124,6 @@ func Test_indexator_calculateStatus(t *testing.T) {
 				repo:               tt.fields.repo,
 				logger:             tt.fields.logger,
 				perPage:            tt.fields.perPage,
-				sleepTimeout:       tt.fields.sleepTimeout,
 			}
 			got, got1 := s.calculateStatus(tt.args.offer, tt.args.catalogReadOffers, tt.args.catalogWriteOffers, tt.args.units)
 			if got != tt.want {
