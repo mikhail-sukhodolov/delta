@@ -178,10 +178,7 @@ var (
 )
 
 func (r *Root) initGRPCServer() {
-	marshaller, err := interceptor.NewMarshaller(sensitiveKeys)
-	if err != nil {
-		panic(err)
-	}
+	marshaller := interceptor.NewMarshaller(sensitiveKeys)
 
 	options := []grpc_helper.ServerOption{
 		grpc_helper.WithKeepaliveInterval(r.Config.GRPC.KeepaliveTime),
@@ -201,6 +198,7 @@ func (r *Root) initGRPCServer() {
 		options = append(options, grpc_helper.WithRegisterReflectionServer())
 	}
 
+	var err error
 	r.Server, err = grpc_helper.NewServer(
 		options...,
 	)
@@ -288,7 +286,6 @@ func (r *Root) initServices() {
 		r.Repositories.OfferRepository,
 		r.Logger,
 		r.Config.IndexatorConfig.IndexPerPage,
-		r.Config.IndexatorConfig.SleepTimeout,
 	)
 }
 

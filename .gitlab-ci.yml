@@ -41,7 +41,7 @@ Full index Testing:
   stage: .post
   when: manual
   script:
-    - 'curl "preowned-offer-read-service-prod-http.ingress.prod.tsum.ai:8146/full_index"'
+    - 'curl --fail "preowned-offer-read-service-testing-http.ingress.dev.tsum.ai:8146/full_index"'
 
 Full index Stable:
   image: repo.int.tsum.com:443/tsum/preowned/golang:1.18
@@ -55,7 +55,7 @@ Full index Prod:
   stage: .post
   when: manual
   script:
-    - 'curl --fail "preowned-offer-read-service-testing-http.ingress.dev.tsum.ai:8146/full_index"'
+    - 'curl --fail "preowned-offer-read-service-prod-http.ingress.prod.tsum.ai:8146/full_index"'
 
 include:
   project: 'sysadmin/docker/nomad'

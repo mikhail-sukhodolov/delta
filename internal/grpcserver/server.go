@@ -62,6 +62,7 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 		OfferCodes: lo.Map(listResponse.Data, func(item model.Offer, index int) string {
 			return item.Code
 		}),
+		PriceFilter: offer_service.OfferPriceFilter_OFFER_PRICE_FILTER_WITH_EMPTY_PRICE,
 	}, grpc.MaxCallRecvMsgSize(maxMsgSize))
 	if err != nil {
 		return nil, fmt.Errorf("OfferClient.SearchOffers: %w", err)

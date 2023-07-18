@@ -36,7 +36,6 @@ type indexator struct {
 	repo               repository.OfferRepository
 	logger             *zap.Logger
 	perPage            int
-	sleepTimeout       time.Duration
 }
 
 func NewIndexator(
@@ -47,7 +46,6 @@ func NewIndexator(
 	repo repository.OfferRepository,
 	logger *zap.Logger,
 	perPage int,
-	sleepTimeout time.Duration,
 ) Indexator {
 	return &indexator{
 		lock:               sync.Mutex{},
@@ -58,7 +56,6 @@ func NewIndexator(
 		repo:               repo,
 		logger:             logger.Named("indexator"),
 		perPage:            perPage,
-		sleepTimeout:       sleepTimeout,
 	}
 }
 
@@ -72,12 +69,6 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 	started := time.Now()
 	numIndexed := 0
 	for page := 1; ; page++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(s.sleepTimeout):
-		}
-
 		offers, err := s.offerClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
 			Pagination: &offer_service.Pagination{
 				Limit:  lo.ToPtr(int32(s.perPage)),
@@ -87,6 +78,7 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 				Field:     offer_service.SortField_ID,
 				Direction: offer_service.SortDirection_DESC,
 			},
+			PriceFilter: offer_service.OfferPriceFilter_OFFER_PRICE_FILTER_WITH_EMPTY_PRICE,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("can't ListUsers %w", err)
@@ -256,11 +248,15 @@ func (s *indexator) calculateStatus(
 				}
 			}
 
-			if offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000 {
+			if offer.Price == nil || (offer.Price.CurrencyCode == "RUB" && offer.Price.Units < 1000) {
 				return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 			} else {
 				return model.OfferStatusCodeSales, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 			}
+		}
+
+		if unit.VersionClosingReason == stockReasonSold {
+			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
 		}
 
 		if unit.IsReserved {
@@ -268,11 +264,7 @@ func (s *indexator) calculateStatus(
 		}
 
 		if unit.VersionClosingReason == stockReasonReleased {
-			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
-		}
-
-		if unit.VersionClosingReason == stockReasonSold {
-			return model.OfferStatusCodeSold, unit.VersionClosedAt.AsTime()
+			return model.OfferStatusCodeInOrder, unit.VersionClosedAt.AsTime()
 		}
 
 		if unit.VersionClosingReason == stockReasonReturned {

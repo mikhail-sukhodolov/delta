@@ -23,8 +23,7 @@ type Config struct {
 }
 
 type IndexatorConfig struct {
-	SleepTimeout time.Duration `envconfig:"SLEEP_TIMEOUT" default:"10s" required:"true"`
-	IndexPerPage int           `envconfig:"INDEX_PER_PAGE" default:"50" required:"true"`
+	IndexPerPage int `envconfig:"INDEX_PER_PAGE" default:"50" required:"true"`
 }
 
 type GRPCServerConfig struct {
