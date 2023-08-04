@@ -75,6 +75,9 @@ func createOrUpdateIndex(client *elasticsearch.Client, indexName string) error {
 }
 
 func (e *elasticOfferRepo) Update(ctx context.Context, offers []model.Offer) error {
+	if len(offers) == 0 {
+		return nil
+	}
 	reader, err := modelsToReader(offers)
 	if err != nil {
 		return err

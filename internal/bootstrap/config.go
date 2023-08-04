@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"gitlab.int.tsum.com/core/libraries/corekit.git/kafka/broker"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -20,6 +21,7 @@ type Config struct {
 	ElasticAPM       ElasticAPM
 	Elastic          ElasticConfig `envconfig:"ELASTIC"`
 	IndexatorConfig  IndexatorConfig
+	Kafka            KafkaConfig
 }
 
 type IndexatorConfig struct {
@@ -59,6 +61,12 @@ type ElasticAPM struct {
 type ElasticConfig struct {
 	Addresses      []string `envconfig:"ADDRESSES" required:"true"`
 	OfferIndexName string   `envconfig:"OFFER_INDEX_NAME" default:"delta.offer_index" required:"true"`
+}
+type KafkaConfig struct {
+	broker.Config          `envconfig:"KAFKA"`
+	Enabled                bool   `envconfig:"KAFKA_ENABLED" default:"true"`
+	ConsumerGroupId        string `envconfig:"CONSUMER_GROUP_ID" required:"true"`
+	StockUnitReservedTopic string `envconfig:"STOCK_UNIT_RESERVED_TOPIC" required:"true"`
 }
 
 func NewConfig() (*Config, error) {

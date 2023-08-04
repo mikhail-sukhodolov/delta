@@ -5,14 +5,20 @@ import (
 	"fmt"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/getsentry/sentry-go"
+	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/samber/lo"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/healthcheck"
+	"gitlab.int.tsum.com/core/libraries/corekit.git/kafka/broker"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_read_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/catalog_write"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
+	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
+	"gitlab.int.tsum.com/preowned/simona/delta/core.git/event_processing"
 	grpc_helper "gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc"
 	"gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc/interceptor"
 	"go.elastic.co/apm/module/apmgrpc"
@@ -23,8 +29,10 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"offer-read-service/internal/consumer"
 	"offer-read-service/internal/repository"
 	"offer-read-service/internal/service"
+	"offer-read-service/internal/service/offer_enricher"
 	"sync"
 )
 
@@ -37,6 +45,7 @@ type Root struct {
 	Server         *grpc.Server
 	Infrastructure struct {
 		HTTP          *http.Server
+		KafkaConsumer broker.Consumer
 		Elasticsearch *elasticsearch.Client
 	}
 	Repositories struct {
@@ -50,7 +59,8 @@ type Root struct {
 		StockClient        stock_service.StockServiceClient
 	}
 	Services struct {
-		Indexator service.Indexator
+		Indexator     service.Indexator
+		OfferEnricher service.OfferEnricher
 	}
 	Logger         *zap.Logger
 	backgroundJobs []func() error
@@ -73,11 +83,9 @@ func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, err
 	var err error
 
 	// Init logger
-	root.Logger, err = logging.NewLogger(config.LogLevel, serviceName, config.ReleaseID)
-	if err != nil {
-		return nil, err
-	}
-	root.Logger = root.Logger.WithOptions(zap.AddStacktrace(zap.PanicLevel))
+	root.Logger = lo.Must(logging.NewLogger(config.LogLevel, serviceName, config.ReleaseID)).
+		WithOptions(zap.AddStacktrace(zap.PanicLevel))
+	ctx = ctxzap.ToContext(ctx, root.Logger)
 
 	root.initGRPCServer()
 	root.initInfrastructure()
@@ -85,6 +93,7 @@ func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, err
 	root.initClients()
 	root.initRepositories()
 	root.initServices()
+	root.initConsumers(ctx)
 	err = root.initSentry()
 	if err != nil {
 		root.Logger.Sugar().Errorf("error on init sentry: %s", err)
@@ -149,7 +158,8 @@ func (r *Root) initHTTPServer(ctx context.Context) {
 	mux.Handle("/full_index", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		go func() {
 			r.Logger.Info("indexator is starting")
-
+			ctx = ctxzap.ToContext(ctx, r.Logger.Named("full_index").
+				With(zap.String("trace.id", uuid.New().String())))
 			_, err := r.Services.Indexator.Index(ctx)
 			if err != nil {
 				r.Logger.Error("couldn't indexing", zap.Error(err))
@@ -257,6 +267,7 @@ func dial(target string) (*grpc.ClientConn, error) {
 }
 
 func (r *Root) initInfrastructure() {
+	r.Infrastructure.KafkaConsumer = broker.NewConsumer(r.Config.Kafka.Config, r.Logger)
 	client, err := elasticsearch.NewClient(elasticsearch.Config{
 		Addresses: r.Config.Elastic.Addresses,
 	})
@@ -280,12 +291,14 @@ func (r *Root) initRepositories() {
 func (r *Root) initServices() {
 	r.Services.Indexator = service.NewIndexator(
 		r.Clients.OfferClient,
+		r.Repositories.OfferRepository,
+		r.Config.IndexatorConfig.IndexPerPage,
+	)
+	r.Services.OfferEnricher = offer_enricher.NewEnricher(
 		r.Clients.CatalogReadClient,
 		r.Clients.CatalogWriteClient,
 		r.Clients.StockClient,
 		r.Repositories.OfferRepository,
-		r.Logger,
-		r.Config.IndexatorConfig.IndexPerPage,
 	)
 }
 
@@ -301,4 +314,16 @@ func (r *Root) initSentry() error {
 	}
 
 	return nil
+}
+
+func (r *Root) initConsumers(ctx context.Context) {
+	r.RegisterBackgroundJob(func() error {
+		event_processing.NewEventProcessor[stock.StockUnitReservedEvent](
+			r.Config.Kafka.ConsumerGroupId,
+			r.Config.Kafka.StockUnitReservedTopic,
+			r.Infrastructure.KafkaConsumer,
+			consumer.RetryingMessageHandler(consumer.StockUnitReserved(r.Clients.OfferClient, r.Services.OfferEnricher, r.Repositories.OfferRepository)),
+		).Run(ctx)
+		return nil
+	})
 }
