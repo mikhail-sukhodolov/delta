@@ -6,7 +6,6 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/samber/lo"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
-	"go.uber.org/zap"
 	"offer-read-service/internal/repository"
 	"sync"
 	"time"
@@ -18,7 +17,7 @@ type IndexingResult struct {
 }
 
 type Indexator interface {
-	Index(ctx context.Context) (*IndexingResult, error)
+	Index(ctx context.Context) (IndexingResult, error)
 }
 
 type indexator struct {
@@ -29,12 +28,7 @@ type indexator struct {
 	perPage         int
 }
 
-func NewIndexator(
-	offerClient offer_service.OfferServiceClient,
-	repo repository.OfferRepository,
-	perPage int,
-	offerEnricher OfferEnricher,
-) Indexator {
+func NewIndexator(offerClient offer_service.OfferServiceClient, repo repository.OfferRepository, perPage int, offerEnricher OfferEnricher) Indexator {
 	return &indexator{
 		lock:            sync.Mutex{},
 		offerClient:     offerClient,
@@ -44,13 +38,12 @@ func NewIndexator(
 	}
 }
 
-func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
+func (s *indexator) Index(ctx context.Context) (IndexingResult, error) {
 	logger := ctxzap.Extract(ctx)
 	if !s.lock.TryLock() {
-		return nil, fmt.Errorf("indexing is already started")
+		return IndexingResult{}, fmt.Errorf("indexing is already started")
 	}
 	defer s.lock.Unlock()
-
 	started := time.Now()
 	numIndexed := 0
 	for page := 1; ; page++ {
@@ -66,27 +59,26 @@ func (s *indexator) Index(ctx context.Context) (*IndexingResult, error) {
 			PriceFilter: offer_service.OfferPriceFilter_OFFER_PRICE_FILTER_WITH_EMPTY_PRICE,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("can't ListUsers %w", err)
+			return IndexingResult{}, fmt.Errorf("can't SearchOffers %w", err)
 		}
-		logger.Sugar().Infof("list offer %d", len(offers.Offer))
 
 		richOffers, err := s.offerEnricher.Enrich(ctx, offers.Offer)
 		if err != nil {
-			return nil, fmt.Errorf("can't enrich %w", err)
+			return IndexingResult{}, fmt.Errorf("can't enrich %w", err)
 		}
-		logger.Sugar().Infof("enrich offers %d", len(richOffers))
 
 		err = s.offerRepository.Update(ctx, richOffers)
 		if err != nil {
-			return nil, fmt.Errorf("can't update in elastic %w", err)
+			return IndexingResult{}, fmt.Errorf("can't update in elastic %w", err)
 		}
-
-		logger.Info("indexed documents", zap.Int("total", numIndexed))
+		if page%10 == 0 || page == 1 {
+			logger.Sugar().Infof("page=%d", page)
+		}
 		numIndexed += len(richOffers)
 		if len(offers.Offer) < s.perPage {
 			break
 		}
 	}
 
-	return &IndexingResult{NumIndexed: numIndexed, Elapsed: time.Since(started)}, nil
+	return IndexingResult{NumIndexed: numIndexed, Elapsed: time.Since(started)}, nil
 }

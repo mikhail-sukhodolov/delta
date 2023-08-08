@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/getsentry/sentry-go"
-	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/samber/lo"
-	"gitlab.int.tsum.com/core/libraries/corekit.git/healthcheck"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/kafka/broker"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing"
@@ -28,7 +25,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"offer-read-service/internal/consumer"
 	"offer-read-service/internal/repository"
 	"offer-read-service/internal/service"
@@ -89,11 +85,11 @@ func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, err
 
 	root.initGRPCServer()
 	root.initInfrastructure()
-	root.initHTTPServer(ctx)
 	root.initClients()
 	root.initRepositories()
 	root.initServices()
 	root.initConsumers(ctx)
+	root.initHTTPServer()
 	err = root.initSentry()
 	if err != nil {
 		root.Logger.Sugar().Errorf("error on init sentry: %s", err)
@@ -137,50 +133,6 @@ func (r *Root) stop() {
 		}()
 	}
 	wg.Wait()
-}
-
-func (r *Root) initHTTPServer(ctx context.Context) {
-	mux := http.NewServeMux()
-
-	// Init pprof endpoints
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-
-	// Init prometheus metrics endpoint
-	mux.Handle("/metrics", promhttp.Handler())
-
-	// Init health check endpoint
-	mux.Handle("/health", healthcheck.Handler(
-		healthcheck.WithReleaseID(r.Config.ReleaseID),
-	))
-	mux.Handle("/full_index", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		go func() {
-			r.Logger.Info("indexator is starting")
-			ctx = ctxzap.ToContext(ctx, r.Logger.Named("full_index").
-				With(zap.String("trace.id", uuid.New().String())))
-			_, err := r.Services.Indexator.Index(ctx)
-			if err != nil {
-				r.Logger.Error("couldn't indexing", zap.Error(err))
-			}
-
-			r.Logger.Info("indexator finished")
-		}()
-
-		writer.WriteHeader(200)
-	}))
-
-	r.Infrastructure.HTTP = &http.Server{
-		Handler:     mux,
-		Addr:        r.Config.HTTP.ListenAddr,
-		IdleTimeout: r.Config.HTTP.KeepaliveTime + r.Config.HTTP.KeepaliveTimeout,
-	}
-
-	r.RegisterBackgroundJob(func() error {
-		return r.Infrastructure.HTTP.ListenAndServe()
-	})
-	r.RegisterStopHandler(func() { _ = r.Infrastructure.HTTP.Shutdown(context.Background()) })
 }
 
 var (
