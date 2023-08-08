@@ -50,15 +50,14 @@ func (r *Root) initHTTPServer() {
 func fullIndexHandler(indexator service.Indexator) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		go func() {
-			ctx := apm.DetachedContext(request.Context())
-			logger := ctxzap.Extract(ctx).Named("full_index")
-			logger.Info("indexator is starting")
+			ctx := ctxzap.ToContext(apm.DetachedContext(request.Context()), ctxzap.Extract(request.Context()).Named("full_index"))
+			ctxzap.Info(ctx, "indexator is starting")
 			result, err := indexator.Index(ctx)
 			if err != nil {
-				logger.Error("couldn't indexing", zap.Error(err))
+				ctxzap.Error(ctx, "couldn't indexing", zap.Error(err))
 				return
 			}
-			logger.Info("indexator finished", zap.Reflect("result", fmt.Sprintf("%+v", result)))
+			ctxzap.Info(ctx, fmt.Sprintf("indexator finished %+v", fmt.Sprintf("%+v", result)))
 		}()
 
 		writer.WriteHeader(200)
