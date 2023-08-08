@@ -33,12 +33,14 @@ func NewIndexator(
 	offerClient offer_service.OfferServiceClient,
 	repo repository.OfferRepository,
 	perPage int,
+	offerEnricher OfferEnricher,
 ) Indexator {
 	return &indexator{
 		lock:            sync.Mutex{},
 		offerClient:     offerClient,
 		offerRepository: repo,
 		perPage:         perPage,
+		offerEnricher:   offerEnricher,
 	}
 }
 

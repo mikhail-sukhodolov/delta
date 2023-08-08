@@ -289,16 +289,17 @@ func (r *Root) initRepositories() {
 }
 
 func (r *Root) initServices() {
-	r.Services.Indexator = service.NewIndexator(
-		r.Clients.OfferClient,
-		r.Repositories.OfferRepository,
-		r.Config.IndexatorConfig.IndexPerPage,
-	)
 	r.Services.OfferEnricher = offer_enricher.NewEnricher(
 		r.Clients.CatalogReadClient,
 		r.Clients.CatalogWriteClient,
 		r.Clients.StockClient,
 		r.Repositories.OfferRepository,
+	)
+	r.Services.Indexator = service.NewIndexator(
+		r.Clients.OfferClient,
+		r.Repositories.OfferRepository,
+		r.Config.IndexatorConfig.IndexPerPage,
+		r.Services.OfferEnricher,
 	)
 }
 
