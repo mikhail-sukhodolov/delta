@@ -27,15 +27,6 @@ variables:
       - artifact.tar.gz
     expire_in: 3 day
 
-Unit tests:
-  stage: .pre
-  image:
-    name: repo.int.tsum.com:443/tsum/preowned/golang:1.18
-  before_script:
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.int.tsum.com".insteadOf "https://gitlab.int.tsum.com"
-  script:
-    - go test -race ./...
-
 Full index Testing:
   image: repo.int.tsum.com:443/tsum/preowned/golang:1.18
   stage: .post
@@ -58,6 +49,7 @@ Full index Prod:
     - 'curl --fail "preowned-offer-read-service-prod-http.ingress.prod.tsum.ai:8146/full_index"'
 
 include:
-  project: 'sysadmin/docker/nomad'
-  file: 'include-ci/apps/preowned_offer_read_service.yml'
-  ref: master
+  - project: 'sysadmin/docker/nomad'
+    file: 'include-ci/apps/preowned_offer_read_service.yml'
+  - project: 'sysadmin/docker/nomad'
+    file: 'include-ci/groups/delta.yml'
