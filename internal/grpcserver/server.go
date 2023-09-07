@@ -58,14 +58,22 @@ func (s server) ListOffers(ctx context.Context, request *offer_read_service.List
 	}
 
 	const maxMsgSize = 1024 * 1024 * 50
-	searchOffersResponse, err := s.root.Clients.OfferClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
-		OfferCodes: lo.Map(listResponse.Data, func(item model.Offer, index int) string {
-			return item.Code
-		}),
-		PriceFilter: offer_service.OfferPriceFilter_OFFER_PRICE_FILTER_WITH_EMPTY_PRICE,
-	}, grpc.MaxCallRecvMsgSize(maxMsgSize))
-	if err != nil {
-		return nil, fmt.Errorf("OfferClient.SearchOffers: %w", err)
+	var searchOffersResponse *offer_service.SearchOffersResponse
+	if len(listResponse.Data) > 0 {
+		searchOffersResponse, err = s.root.Clients.OfferClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{
+			Pagination: &offer_service.Pagination{
+				Limit: lo.ToPtr(int32(len(listResponse.Data))),
+			},
+			OfferCodes: lo.Map(listResponse.Data, func(item model.Offer, index int) string {
+				return item.Code
+			}),
+			PriceFilter: offer_service.OfferPriceFilter_OFFER_PRICE_FILTER_WITH_EMPTY_PRICE,
+		}, grpc.MaxCallRecvMsgSize(maxMsgSize))
+		if err != nil {
+			return nil, fmt.Errorf("OfferClient.SearchOffers: %w", err)
+		}
+	} else {
+		searchOffersResponse = &offer_service.SearchOffersResponse{}
 	}
 
 	offersFromOfferSVCMap := lo.SliceToMap(searchOffersResponse.Offer, func(item *offer_service.Offer) (string, *offer_service.Offer) {
