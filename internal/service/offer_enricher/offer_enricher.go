@@ -151,9 +151,13 @@ func (s enricher) calculateStatus(
 			item, ok := catalogWriteOffers[offer.ItemCode]
 			if ok {
 				switch {
-				case item.Item.IsDraft:
-					return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 				case !lo.Contains(item.Item.PublicationFlags, catalog_write.ItemPublicationFlag_ITEM_PUBLICATION_FLAG_VISIBLE_IOS):
+					if s.isNotExhibitedIronWatch(item.Attributes, offer) {
+						return model.OfferStatusCodeSales, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
+					}
+
+					return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
+				case item.Item.IsDraft:
 					return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
 				}
 			}
@@ -192,4 +196,16 @@ func (s enricher) calculateStatus(
 	}
 
 	return model.OfferStatusCodeNew, catalogWriteOffers[offer.ItemCode].Item.CreatedAt.AsTime()
+}
+
+func (s enricher) isNotExhibitedIronWatch(attributes []*catalog_write.ItemAttributeComposite, offer *offer_service.Offer) bool {
+	for _, attribute := range attributes {
+		for _, value := range attribute.AttributeValues {
+			if value.Code == "ADDITIONAL_FEATURES_IRON_WATCHES" && offer.Price != nil {
+				return true
+			}
+		}
+	}
+
+	return false
 }
