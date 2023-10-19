@@ -90,7 +90,7 @@ func (s enricher) Enrich(ctx context.Context, offers []*offer_service.Offer) ([]
 	offers = lo.Filter(offers, func(offer *offer_service.Offer, _ int) bool {
 		ok := catalogWriteItems[offer.ItemCode] != nil
 		if !ok {
-			logger.Error("catalog write doesn't have offer", zap.String("item_code", offer.ItemCode))
+			logger.Warn("catalog write doesn't have offer", zap.String("item_code", offer.ItemCode))
 		}
 		return ok
 	})
