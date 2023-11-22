@@ -7,15 +7,15 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock"
-	"gitlab.int.tsum.com/preowned/simona/delta/core.git/event_processing"
+	"gitlab.int.tsum.com/preowned/simona/delta/core.git/retrying_consumer"
 	"go.uber.org/zap"
 	"offer-read-service/internal/repository"
 	"offer-read-service/internal/service"
 	"time"
 )
 
-func StockUnitReserved(offerClient offer_service.OfferServiceClient, offerEnricher service.OfferEnricher, offerRepository repository.OfferRepository) event_processing.Handler[stock.StockUnitReservedEvent] {
-	return func(ctx context.Context, event stock.StockUnitReservedEvent, _ event_processing.Meta) error {
+func StockUnitReserved(offerClient offer_service.OfferServiceClient, offerEnricher service.OfferEnricher, offerRepository repository.OfferRepository) retrying_consumer.Handler[stock.StockUnitReservedEvent] {
+	return func(ctx context.Context, event stock.StockUnitReservedEvent, _ retrying_consumer.Meta) error {
 		time.Sleep(time.Second * 5)
 		searchOffers, err := offerClient.SearchOffers(ctx, &offer_service.SearchOffersRequest{OfferCodes: []string{event.OfferCode}})
 		if err != nil {
@@ -37,8 +37,8 @@ func StockUnitReserved(offerClient offer_service.OfferServiceClient, offerEnrich
 	}
 }
 
-func RetryingMessageHandler(under event_processing.Handler[stock.StockUnitReservedEvent]) event_processing.Handler[stock.StockUnitReservedEvent] {
-	return func(ctx context.Context, event stock.StockUnitReservedEvent, meta event_processing.Meta) error {
+func RetryingMessageHandler(under retrying_consumer.Handler[stock.StockUnitReservedEvent]) retrying_consumer.Handler[stock.StockUnitReservedEvent] {
+	return func(ctx context.Context, event stock.StockUnitReservedEvent, meta retrying_consumer.Meta) error {
 		logger := ctxzap.Extract(ctx)
 		err := retry.Do(
 			func() error {

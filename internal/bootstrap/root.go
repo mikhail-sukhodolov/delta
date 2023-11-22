@@ -15,10 +15,10 @@ import (
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/offer_service"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock"
 	"gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3/gen/utp/stock_service"
-	"gitlab.int.tsum.com/preowned/simona/delta/core.git/event_processing"
 	grpc_helper "gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc"
-	"gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc/interceptor"
+	"gitlab.int.tsum.com/preowned/simona/delta/core.git/retrying_consumer"
 	"go.elastic.co/apm/module/apmgrpc"
+	"go.elastic.co/apm/v2"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -61,6 +61,7 @@ type Root struct {
 	Logger         *zap.Logger
 	backgroundJobs []func() error
 	stopHandlers   []func()
+	Tracer         *apm.Tracer
 }
 
 func (r *Root) RegisterBackgroundJob(backgroundJob func() error) {
@@ -76,13 +77,14 @@ type Option func(app *Root)
 func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, error) {
 	root := Root{Config: config}
 
-	var err error
-
-	// Init logger
 	root.Logger = lo.Must(logging.NewLogger(config.LogLevel, serviceName, config.ReleaseID)).
 		WithOptions(zap.AddStacktrace(zap.PanicLevel))
 	ctx = ctxzap.ToContext(ctx, root.Logger)
-
+	root.Tracer = lo.Must(tracing.NewAPMTracerFromConfig(tracing.Config{
+		ServiceName: config.ElasticAPM.ServiceName,
+		ServerURL:   config.ElasticAPM.ServerURL,
+		Environment: config.ElasticAPM.Environment,
+	}, config.ReleaseID))
 	root.initGRPCServer()
 	root.initInfrastructure()
 	root.initClients()
@@ -90,10 +92,7 @@ func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, err
 	root.initServices()
 	root.initConsumers(ctx)
 	root.initHTTPServer()
-	err = root.initSentry()
-	if err != nil {
-		root.Logger.Sugar().Errorf("error on init sentry: %s", err)
-	}
+	lo.Must0(root.initSentry())
 
 	for _, option := range options {
 		option(&root)
@@ -135,13 +134,7 @@ func (r *Root) stop() {
 	wg.Wait()
 }
 
-var (
-	sensitiveKeys []string
-)
-
 func (r *Root) initGRPCServer() {
-	marshaller := interceptor.NewMarshaller(sensitiveKeys)
-
 	options := []grpc_helper.ServerOption{
 		grpc_helper.WithKeepaliveInterval(r.Config.GRPC.KeepaliveTime),
 		grpc_helper.WithKeepaliveTimeout(r.Config.GRPC.KeepaliveTimeout),
@@ -153,7 +146,6 @@ func (r *Root) initGRPCServer() {
 			Environment: r.Config.ElasticAPM.Environment,
 		}),
 		grpc_helper.WithReleaseID(r.Config.ReleaseID),
-		grpc_helper.WithPayloadJsonPbMarshaller(marshaller),
 	}
 
 	if r.Config.GRPC.RegisterReflectionServer {
@@ -271,11 +263,13 @@ func (r *Root) initSentry() error {
 
 func (r *Root) initConsumers(ctx context.Context) {
 	r.RegisterBackgroundJob(func() error {
-		event_processing.NewEventProcessor[stock.StockUnitReservedEvent](
+		retrying_consumer.NewConsumer[stock.StockUnitReservedEvent](
 			r.Config.Kafka.ConsumerGroupId,
 			r.Config.Kafka.StockUnitReservedTopic,
 			r.Infrastructure.KafkaConsumer,
 			consumer.RetryingMessageHandler(consumer.StockUnitReserved(r.Clients.OfferClient, r.Services.OfferEnricher, r.Repositories.OfferRepository)),
+			r.Tracer,
+			r.Logger,
 		).Run(ctx)
 		return nil
 	})
