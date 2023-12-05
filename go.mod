@@ -18,7 +18,7 @@ require (
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/logging v0.0.0-20230711153135-4742220a3fa3
 	gitlab.int.tsum.com/core/libraries/corekit.git/observability/tracing v0.0.0-20230711153135-4742220a3fa3
 	gitlab.int.tsum.com/preowned/libraries/go-gen-proto.git/v3 v3.448.0
-	gitlab.int.tsum.com/preowned/simona/delta/core.git v1.6.0
+	gitlab.int.tsum.com/preowned/simona/delta/core.git v1.7.1
 	go.elastic.co/apm/module/apmgrpc v1.15.0
 	go.elastic.co/apm/module/apmhttp/v2 v2.4.3
 	go.elastic.co/apm/v2 v2.4.3
@@ -30,7 +30,7 @@ require (
 require (
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
+	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.3.0 // indirect
 	github.com/elastic/go-licenser v0.4.1 // indirect
@@ -42,7 +42,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jcchavezs/porto v0.4.0 // indirect
-	github.com/jmoiron/sqlx v1.3.4 // indirect
+	github.com/jmoiron/sqlx v1.3.5 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/johnbellone/grpc-middleware-sentry v0.3.0 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
@@ -77,11 +77,11 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230711153332-06a737ee72cb // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/net v0.14.0 // indirect
-	golang.org/x/sys v0.11.0 // indirect
-	golang.org/x/text v0.12.0 // indirect
-	golang.org/x/tools v0.11.1 // indirect
+	golang.org/x/mod v0.14.0 // indirect
+	golang.org/x/net v0.18.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/tools v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230726155614-23370e0ffb3e // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
