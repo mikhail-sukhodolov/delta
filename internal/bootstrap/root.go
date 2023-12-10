@@ -3,8 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/getsentry/sentry-go"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/samber/lo"
 	"gitlab.int.tsum.com/core/libraries/corekit.git/kafka/broker"
@@ -18,7 +16,6 @@ import (
 	grpc_helper "gitlab.int.tsum.com/preowned/simona/delta/core.git/grpc"
 	"gitlab.int.tsum.com/preowned/simona/delta/core.git/retrying_consumer"
 	"go.elastic.co/apm/module/apmgrpc"
-	"go.elastic.co/apm/v2"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -32,59 +29,90 @@ import (
 	"sync"
 )
 
+// Объявляем константу для имени сервиса.
 const (
 	serviceName = "offer-read"
 )
 
+// Определение структуры Root, которая будет являться основным компонентом приложения.
 type Root struct {
-	Config         *Config
-	Server         *grpc.Server
+	// Конфигурация приложения
+	Config *Config
+
+	// GRPC сервер
+	Server *grpc.Server
+
+	// Определение инфраструктуры, включая HTTP сервер, Kafka потребителя и клиента Elasticsearch
 	Infrastructure struct {
 		HTTP          *http.Server
 		KafkaConsumer broker.Consumer
 		Elasticsearch *elasticsearch.Client
 	}
+
+	// Репозитории для работы с данными
 	Repositories struct {
 		OfferRepository       repository.OfferRepository
 		OfferStatusRepository repository.OfferStatusRepository
 	}
+
+	// Клиенты для взаимодействия с внешними сервисами
 	Clients struct {
 		OfferClient        offer_service.OfferServiceClient
 		CatalogReadClient  catalog_read_service.CatalogReadSearchServiceClient
 		CatalogWriteClient catalog_write.CatalogWriteServiceClient
 		StockClient        stock_service.StockServiceClient
 	}
+
+	// Сервисы, предоставляющие бизнес-логику
 	Services struct {
 		Indexator     service.Indexator
 		OfferEnricher service.OfferEnricher
 	}
-	Logger         *zap.Logger
+
+	// Логгер для записи логов
+	Logger *zap.Logger
+
+	// Список фоновых задач
 	backgroundJobs []func() error
-	stopHandlers   []func()
-	Tracer         *apm.Tracer
+
+	// Обработчики для остановки сервиса
+	stopHandlers []func()
+
+	// Трассировщик для мониторинга
+	Tracer *apm.Tracer
 }
 
+// Регистрация фоновой задачи
 func (r *Root) RegisterBackgroundJob(backgroundJob func() error) {
 	r.backgroundJobs = append(r.backgroundJobs, backgroundJob)
 }
 
+// Регистрация обработчика остановки
 func (r *Root) RegisterStopHandler(stopHandler func()) {
 	r.stopHandlers = append(r.stopHandlers, stopHandler)
 }
 
+// Тип для опций инициализации Root
 type Option func(app *Root)
 
+// Функция создания нового Root с заданными параметрами и опциями
 func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, error) {
+	// Создание экземпляра Root с конфигурацией
 	root := Root{Config: config}
 
+	// Инициализация логгера
 	root.Logger = lo.Must(logging.NewLogger(config.LogLevel, serviceName, config.ReleaseID)).
 		WithOptions(zap.AddStacktrace(zap.PanicLevel))
 	ctx = ctxzap.ToContext(ctx, root.Logger)
+
+	// Инициализация трассировщика
 	root.Tracer = lo.Must(tracing.NewAPMTracerFromConfig(tracing.Config{
 		ServiceName: config.ElasticAPM.ServiceName,
 		ServerURL:   config.ElasticAPM.ServerURL,
 		Environment: config.ElasticAPM.Environment,
 	}, config.ReleaseID))
+
+	// Инициализация компонентов приложения
 	root.initGRPCServer()
 	root.initInfrastructure()
 	root.initClients()
@@ -94,6 +122,7 @@ func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, err
 	root.initHTTPServer()
 	lo.Must0(root.initSentry())
 
+	// Применение дополнительных опций
 	for _, option := range options {
 		option(&root)
 	}
@@ -101,18 +130,21 @@ func NewRoot(ctx context.Context, config *Config, options ...Option) (*Root, err
 	return &root, nil
 }
 
+// Запуск приложения
 func (r *Root) Run(ctx context.Context) error {
 	r.Logger.Info("starting application")
-	defer r.stop()
+	defer r.stop() // Остановка при завершении
 
+	// Канал для обработки ошибок фоновых задач
 	errorsCh := make(chan error)
 	for _, job := range r.backgroundJobs {
 		_job := job
 		go func() {
-			errorsCh <- _job()
+			errorsCh <- _job() // Запуск задачи и отправка результата в канал
 		}()
 	}
 
+	// Ожидание завершения контекста или ошибки из канала
 	select {
 	case <-ctx.Done():
 		return nil
@@ -121,20 +153,40 @@ func (r *Root) Run(ctx context.Context) error {
 	}
 }
 
+// Функция остановки приложения
 func (r *Root) stop() {
+	// Создаем переменную 'wg' типа WaitGroup из пакета 'sync'.
+	// WaitGroup используется для ожидания завершения нескольких горутин.
 	var wg sync.WaitGroup
+
+	// Добавляем в WaitGroup количество элементов, равное длине слайса 'stopHandlers'.
+	// Это означает, что мы будем ожидать завершения всех обработчиков остановки.
 	wg.Add(len(r.stopHandlers))
+
+	// Проходим по всем обработчикам остановки в слайсе 'stopHandlers'.
 	for _, handler := range r.stopHandlers {
+		// Копируем обработчик в локальную переменную '_handler', чтобы избежать проблем с замыканием в горутине.
 		_handler := handler
+
+		// Запускаем горутину, анонимную функцию, для параллельного выполнения обработчика.
 		go func() {
+			// 'defer wg.Done()' будет вызван в конце выполнения горутины,
+			// уменьшая счетчик WaitGroup на единицу.
 			defer wg.Done()
+
+			// Вызываем обработчик остановки '_handler'.
 			_handler()
 		}()
 	}
+
+	// Ожидаем завершения всех горутин, участвующих в WaitGroup.
+	// Это блокирующий вызов, который дождется, пока счетчик WaitGroup не станет равным 0.
 	wg.Wait()
 }
 
+// Инициализация GRPC сервера с определёнными настройками
 func (r *Root) initGRPCServer() {
+	// Настройки сервера
 	options := []grpc_helper.ServerOption{
 		grpc_helper.WithKeepaliveInterval(r.Config.GRPC.KeepaliveTime),
 		grpc_helper.WithKeepaliveTimeout(r.Config.GRPC.KeepaliveTimeout),
@@ -148,6 +200,7 @@ func (r *Root) initGRPCServer() {
 		grpc_helper.WithReleaseID(r.Config.ReleaseID),
 	}
 
+	// Регистрация сервера для отображения в GRPC
 	if r.Config.GRPC.RegisterReflectionServer {
 		options = append(options, grpc_helper.WithRegisterReflectionServer())
 	}
@@ -160,6 +213,7 @@ func (r *Root) initGRPCServer() {
 		panic(err)
 	}
 
+	// Регистрация фоновой задачи для запуска GRPC сервера
 	r.RegisterBackgroundJob(func() error {
 		listener, err := net.Listen("tcp", r.Config.GRPC.ListenAddr)
 		if err != nil {
